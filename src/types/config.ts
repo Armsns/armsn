@@ -9,5 +9,4 @@ export interface Config {
 
 export interface Auth {
   challenge?: boolean;
-  users?: Record<string, string>;
 }

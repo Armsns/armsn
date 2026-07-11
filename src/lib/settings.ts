@@ -31,6 +31,9 @@ const initSettings = () => {
       }
     } else if (dropdown.dataset.portal === "true") {
       dropdown.dataset.portal = "";
+      dropdown.style.left = "";
+      dropdown.style.top = "";
+      dropdown.style.width = "";
       parent.appendChild(dropdown);
     }
   };
@@ -86,6 +89,8 @@ const initSettings = () => {
     if (sibling instanceof HTMLButtonElement) return sibling;
     return dropdown.parentElement?.querySelector<HTMLButtonElement>("[data-dropdown-toggle]") ?? null;
   };
+
+  const getDropdownItems = (dropdown: HTMLElement) => dropdown.querySelectorAll<HTMLElement>("[data-value]");
 
   const setDropdownLabel = (dropdown: HTMLElement, label: string) => {
     const button = getDropdownButton(dropdown);
@@ -168,7 +173,7 @@ const initSettings = () => {
   );
 
   if (themeDropdown) {
-    const links = themeDropdown.querySelectorAll<HTMLAnchorElement>("a");
+    const links = getDropdownItems(themeDropdown);
 
     const themeLabelMap = new Map<string, string>();
     links.forEach((link) => {
@@ -212,7 +217,7 @@ const initSettings = () => {
   };
 
   if (cloakerDropdown) {
-    const links = cloakerDropdown.querySelectorAll<HTMLAnchorElement>("a");
+    const links = getDropdownItems(cloakerDropdown);
     links.forEach((link) => {
       link.addEventListener(
         "click",
@@ -237,7 +242,7 @@ const initSettings = () => {
   };
 
   if (menuDropdown) {
-    const links = menuDropdown.querySelectorAll<HTMLAnchorElement>("a");
+    const links = getDropdownItems(menuDropdown);
     links.forEach((link) => {
       link.addEventListener(
         "click",
@@ -265,7 +270,7 @@ const initSettings = () => {
   };
 
   if (engineDropdown) {
-    const links = engineDropdown.querySelectorAll<HTMLAnchorElement>("a");
+    const links = getDropdownItems(engineDropdown);
     links.forEach((link) => {
       link.addEventListener(
         "click",
@@ -283,7 +288,7 @@ const initSettings = () => {
   }
 
   if (navStyleDropdown) {
-    const links = navStyleDropdown.querySelectorAll<HTMLAnchorElement>("a");
+    const links = getDropdownItems(navStyleDropdown);
     const navLabelMap = new Map<string, string>();
     links.forEach((link) => {
       const value = link.getAttribute("data-value");
@@ -435,12 +440,8 @@ const initSettings = () => {
     panicKey.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
-      let key = panicKey.value.trim();
+      const key = panicKey.value.trim();
       if (!key) return;
-
-      if (key.length >= 2 && !key.includes(",")) {
-        key = key.split("").join(",");
-      }
 
       localStorage.setItem("key", key);
       window.location.reload();

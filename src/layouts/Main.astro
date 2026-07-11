@@ -6,6 +6,7 @@ import LogOut from "lucide-astro/LogOut";
 import Menu from "lucide-astro/Menu";
 import MessageSquare from "lucide-astro/MessageSquare";
 import Settings2 from "lucide-astro/Settings2";
+import Shield from "lucide-astro/Shield";
 import X from "lucide-astro/X";
 import Layout from "@/layouts/Layout.astro";
 
@@ -15,6 +16,7 @@ const navLinks = [
   { href: "/tabs", text: "Tabs", Icon: AppWindow },
   { href: "/chat", text: "Chat", Icon: MessageSquare },
   { href: "/settings", text: "Settings", Icon: Settings2 },
+  { href: "/admin", text: "Admin", Icon: Shield, adminOnly: true },
 ];
 ---
 
@@ -36,7 +38,9 @@ const navLinks = [
         navLinks.map((link) => (
           <a
             href={link.href}
-            class="inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:-translate-y-0.5"
+            data-nav-link
+            data-admin-only={link.adminOnly ? "true" : undefined}
+            class={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:text-text hover:bg-white/5 transition-all ${link.adminOnly ? "hidden" : ""}`}
           >
             <link.Icon class="w-5 h-5" strokeWidth={1.5} />
             <span>{link.text}</span>
@@ -46,7 +50,7 @@ const navLinks = [
       <button
         id="logout-button"
         type="button"
-        class="inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:text-red-400 hover:-translate-y-0.5 transition-all"
+        class="inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:text-red-400 hover:bg-white/5 transition-all"
       >
         <LogOut class="w-5 h-5" strokeWidth={1.5} />
         <span>Logout</span>
@@ -63,15 +67,32 @@ const navLinks = [
     </button>
   </nav>
 
+  <script is:inline>
+    (function () {
+      try {
+        const navStyle = localStorage.getItem("nav-style") || "inline";
+        if (navStyle === "inline") {
+          const links = document.getElementById("nav-links");
+          const toggle = document.getElementById("menu-toggle");
+          const menu = document.getElementById("nav-menu");
+          links?.classList.remove("hidden");
+          toggle?.classList.add("hidden");
+          menu?.classList.add("hidden");
+        }
+      } catch {}
+    })();
+  </script>
+
   <div
     id="nav-menu"
-    class="fixed top-24 right-4 z-[99998] min-w-[200px] bg-background/95 backdrop-blur-sm border border-white/10 rounded-2xl p-2 shadow-2xl origin-top-right transition-all duration-200 ease-out opacity-0 scale-95 pointer-events-none"
+    class="fixed top-24 right-4 z-[99998] min-w-[200px] bg-background/95 backdrop-blur-sm border border-white/10 rounded-2xl p-2 shadow-2xl origin-top-right transition-all duration-200 ease-out opacity-0 scale-95 pointer-events-none transform"
   >
     {
       navLinks.map((link, i) => (
         <a
           href={link.href}
-          class="menu-item flex items-center gap-3 px-4 py-3 text-text-secondary hover:text-text hover:bg-white/10 transition-all duration-150"
+          data-admin-only={link.adminOnly ? "true" : undefined}
+          class={`menu-item flex items-center gap-3 px-4 py-3 text-text-secondary hover:text-text hover:bg-white/10 transition-all duration-150 ${link.adminOnly ? "hidden" : ""}`}
           style={`transition-delay: ${i * 30}ms;`}
         >
           <link.Icon class="w-5 h-5" strokeWidth={1.5} />
@@ -125,10 +146,25 @@ const navLinks = [
     } catch {
       // ignore network errors
     }
-    window.location.href = "/login";
+    window.location.href = "/auth";
   }
 
-  document.addEventListener("astro:page-load", () => {
+  async function updateAdminLinks() {
+    try {
+      const res = await fetch("/api/auth/session");
+      if (!res.ok) return;
+      const data = (await res.json()) as { user?: string };
+      if (data.user === "armsn") {
+        document.querySelectorAll("[data-admin-only='true']").forEach((el) => {
+          el.classList.remove("hidden");
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  document.addEventListener("astro:page-load", async () => {
     const navStyle = localStorage.getItem("nav-style") || "inline";
     const toggle = document.getElementById(getId("menu-toggle"));
     const menu = document.getElementById(getId("nav-menu"));
@@ -141,6 +177,8 @@ const navLinks = [
     logoutBtn?.addEventListener("click", logout);
     logoutMobileBtn?.addEventListener("click", logout);
 
+    await updateAdminLinks();
+
     if (!toggle || !menu || !openIcon || !closeIcon) return;
 
     if (navStyle === "inline") {
@@ -148,6 +186,14 @@ const navLinks = [
       toggle.classList.add("hidden");
       menu.classList.remove("open");
       menu.classList.add("hidden");
+
+      const currentPath = window.location.pathname;
+      links?.querySelectorAll<HTMLAnchorElement>("[data-nav-link]").forEach((link) => {
+        const isActive = link.getAttribute("href") === currentPath;
+        link.classList.toggle("text-accent", isActive);
+        link.classList.toggle("bg-white/5", isActive);
+        link.setAttribute("aria-current", isActive ? "page" : "false");
+      });
       return;
     }
 

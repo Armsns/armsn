@@ -23,7 +23,7 @@ export const formatUrl = (value: string): string => {
 export const classNames = (...classes: Array<string | false | undefined>): string => classes.filter(Boolean).join(" ");
 
 export const iconButtonClass = "inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary transition-all hover:text-accent hover:bg-white/5";
-export const tabButtonClass = "group relative flex h-8 max-w-[180px] cursor-pointer items-center gap-2 rounded px-3 transition-all";
+export const tabButtonClass = "group relative flex h-8 max-w-[180px] items-center gap-2 rounded px-3 transition-all";
 export const closeButtonClass = "inline-flex h-4 w-4 items-center justify-center rounded opacity-0 transition-all group-hover:opacity-100 hover:text-accent";
 export const addressInputClass = "h-auto flex-1 border-0 bg-transparent p-0 text-sm text-text placeholder:text-text-placeholder focus:outline-none";
 export const actionBarClass = "flex items-center gap-2 rounded border border-border bg-background px-3 py-1.5 transition-all focus-within:border-accent/30";

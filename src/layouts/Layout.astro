@@ -15,7 +15,9 @@ import { ClientRouter } from "astro:transitions";
     <link id="icon" rel="shortcut icon" href="/favicon.svg" />
     <title>ARM$N</title>
     <ClientRouter />
-    <script src="@/lib/global.ts"></script>
+    <script>
+      import "@/lib/global.ts";
+    </script>
     <script is:inline src="/assets/js/analytics.js" defer></script>
     <script>
       import { BareMuxConnection } from "@mercuryworkshop/bare-mux";

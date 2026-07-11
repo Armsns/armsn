@@ -29,8 +29,8 @@ import Layout from "@/layouts/Main.astro";
         <div class="flex items-center justify-between gap-3">
           <label class="flex items-center gap-3 text-sm text-text-secondary">
             <input id="ab-toggle" type="checkbox" class="sr-only" />
-            <span id="ab-switch" class="relative inline-flex h-6 w-11 items-center rounded-full border shadow-inner transition-colors">
-              <span id="ab-knob" class="inline-block h-5 w-5 rounded-full shadow-sm transition-transform"></span>
+            <span id="ab-switch" class="relative inline-flex h-6 w-11 items-center rounded-full border shadow-inner transition-colors" style="background: var(--interactive-secondary); border-color: var(--border);">
+              <span id="ab-knob" class="inline-block h-5 w-5 rounded-full shadow-sm transition-transform" style="background: var(--text); transform: translateX(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.35);"></span>
             </span>
             <span id="ab-status" class="text-text-secondary">Disabled</span>
           </label>
@@ -180,5 +180,7 @@ import Layout from "@/layouts/Main.astro";
 
     </div>
   </div>
-  <script src="@/lib/settings.ts"></script>
+  <script>
+    import "@/lib/settings.ts";
+  </script>
 </Layout>

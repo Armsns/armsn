@@ -15,8 +15,11 @@ import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { build } from "astro";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import INConfig from "./config";
+import { cleanupExpiredSessions, createSession, createUser, deleteSession, deleteSessionsByUser, deleteUser, getSession, getUserByUsername, listUsers, updateUser, userExists, verifyPassword } from "./src/lib/db";
 import { ASSET_FOLDERS, generateMaps, getClientScript, type ObfuscationMaps, ROUTES, transformCss, transformHtml, transformJs } from "./src/lib/obfuscate";
+import { NoAdminUserError, seedAdminUser } from "./src/lib/seed";
 import { getSyncStatus, syncGames } from "./src/lib/sync";
+import { validateDatabase } from "./src/lib/validate-db";
 
 const UPSTREAM_BRANCH = "main";
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -67,13 +70,23 @@ async function Start() {
   }
 
   if (INConfig.auth?.challenge) {
-    if (Object.keys(INConfig.auth.users || {}).length === 0) {
-      console.error("\x1b[31mError: AUTH_CHALLENGE is enabled but no users configured.\x1b[0m");
-      console.error("Set AUTH_USER and AUTH_PASS environment variables, or AUTH_USERS as JSON.");
-      console.error("Example: AUTH_USER=admin AUTH_PASS=secretpassword");
-      console.error('Example: AUTH_USERS=\'{"admin":"password123"}\'');
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("\x1b[31mError: AUTH_CHALLENGE is enabled but Supabase is not configured.\x1b[0m");
+      console.error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.");
       process.exit(1);
     }
+    await validateDatabase().catch((err) => {
+      console.error("\x1b[31m[auth] Database validation failed:\x1b[0m", err.message);
+      process.exit(1);
+    });
+    await seedAdminUser().catch((err) => {
+      if (err instanceof NoAdminUserError) {
+        console.error("\x1b[31m[auth]", err.message, "\x1b[0m");
+      } else {
+        console.error("\x1b[31m[auth] Failed to seed admin user:\x1b[0m", err.message);
+      }
+      process.exit(1);
+    });
   }
 
   interface Session {
@@ -82,7 +95,6 @@ async function Start() {
     expiresAt: number;
   }
 
-  const sessions = new Map<string, Session>();
   const SESSION_COOKIE = "armn_session";
   const SESSION_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
   const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -91,21 +103,17 @@ async function Start() {
     return crypto.createHmac("sha256", SESSION_SECRET).update(sessionId).digest("base64url");
   }
 
-  function createSession(username: string): string {
-    const sessionId = crypto.randomUUID();
-    sessions.set(sessionId, {
-      id: sessionId,
-      username,
-      expiresAt: Date.now() + SESSION_MAX_AGE_MS,
-    });
+  async function createSessionCookie(user: { id: number; username: string }): Promise<string> {
+    const expiresAt = Date.now() + SESSION_MAX_AGE_MS;
+    const sessionId = await createSession(user, expiresAt);
     return `${sessionId}.${signSessionId(sessionId)}`;
   }
 
-  function destroySession(sessionId: string): void {
-    sessions.delete(sessionId);
+  async function destroySessionById(sessionId: string): Promise<void> {
+    await deleteSession(sessionId);
   }
 
-  function parseSessionCookie(cookieHeader: string | undefined): Session | null {
+  async function parseSessionCookie(cookieHeader: string | undefined): Promise<Session | null> {
     if (!cookieHeader) return null;
     const cookies = cookieHeader.split(";").map((c) => c.trim());
     for (const cookie of cookies) {
@@ -115,9 +123,9 @@ async function Start() {
         if (!sessionId || !signature) return null;
         const expected = signSessionId(sessionId);
         if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
-        const session = sessions.get(sessionId);
-        if (!session || session.expiresAt < Date.now()) return null;
-        return session;
+        const session = await getSession(sessionId);
+        if (!session || session.expires_at < Date.now()) return null;
+        return { id: session.id, username: session.username, expiresAt: session.expires_at };
       }
     }
     return null;
@@ -131,7 +139,8 @@ async function Start() {
     reply.header("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   }
 
-  const PUBLIC_PATHS = ["/login", "/api/auth/login", "/sw.js", "/favicon.svg"];
+  const PUBLIC_PATHS = ["/auth", "/login", "/register", "/api/auth/login", "/api/auth/register", "/sw.js", "/favicon.svg"];
+  const ADMIN_USERNAME = "armsn";
   const PUBLIC_PREFIXES = ["/assets/", "/favicon", "/_astro/", "/@"];
 
   function isPublicPath(url: string): boolean {
@@ -148,9 +157,20 @@ async function Start() {
     if (!INConfig.auth?.challenge) return;
     if (isPublicPath(req.url)) return;
 
-    const session = parseSessionCookie(req.headers.cookie);
+    const session = await parseSessionCookie(req.headers.cookie);
     if (session) {
       (req as FastifyRequest & { session?: Session }).session = session;
+
+      // Restrict admin routes to the armsn user.
+      if (req.url === "/admin" || req.url.startsWith("/admin/") || req.url.startsWith("/api/admin/")) {
+        if (session.username !== ADMIN_USERNAME) {
+          const accept = req.headers.accept || "";
+          if (accept.includes("application/json") || req.url.startsWith("/api/")) {
+            return reply.code(403).send({ error: "Forbidden" });
+          }
+          return reply.redirect("/");
+        }
+      }
       return;
     }
 
@@ -159,57 +179,220 @@ async function Start() {
       return reply.code(401).send({ error: "Unauthorized" });
     }
 
-    return reply.redirect("/login");
+    return reply.redirect("/auth");
   });
+
+  const registrationAttempts = new Map<string, number[]>();
+  const REGISTER_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+  const REGISTER_RATE_LIMIT_MAX = 5;
+
+  function isRateLimited(ip: string): boolean {
+    const now = Date.now();
+    const attempts = registrationAttempts.get(ip) ?? [];
+    const recent = attempts.filter((time) => now - time < REGISTER_RATE_LIMIT_WINDOW_MS);
+    if (recent.length === 0) {
+      registrationAttempts.delete(ip);
+    } else {
+      registrationAttempts.set(ip, recent);
+    }
+    return recent.length >= REGISTER_RATE_LIMIT_MAX;
+  }
+
+  function recordAttempt(ip: string): void {
+    const attempts = registrationAttempts.get(ip) ?? [];
+    attempts.push(Date.now());
+    registrationAttempts.set(ip, attempts);
+  }
+
+  if (INConfig.auth?.challenge) {
+    app.get("/login", async (_req, reply) => {
+      return reply.redirect("/auth");
+    });
+
+    app.get("/register", async (_req, reply) => {
+      return reply.redirect("/auth");
+    });
+
+    app.post("/api/auth/register", async (req, reply) => {
+      const clientIp = req.ip ?? "unknown";
+      recordAttempt(clientIp);
+      if (isRateLimited(clientIp)) {
+        return reply.code(429).send({ error: "Too many registration attempts. Try again later." });
+      }
+
+      const body = (req.body ?? {}) as { username?: unknown; password?: unknown; confirmPassword?: unknown };
+      const username = typeof body.username === "string" ? body.username.trim() : "";
+      const password = typeof body.password === "string" ? body.password : "";
+      const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
+
+      if (!username || username.length < 3 || username.length > 32) {
+        return reply.code(400).send({ error: "Username must be 3-32 characters" });
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        return reply.code(400).send({ error: "Username can only contain letters, numbers, and underscores" });
+      }
+      if (!password || password.length < 8) {
+        return reply.code(400).send({ error: "Password must be at least 8 characters" });
+      }
+      if (password !== confirmPassword) {
+        return reply.code(400).send({ error: "Passwords do not match" });
+      }
+
+      const exists = await userExists(username);
+      if (exists) {
+        return reply.code(409).send({ error: "Username already taken" });
+      }
+
+      try {
+        const user = await createUser(username, password, false);
+        const sessionValue = await createSessionCookie(user);
+        setSessionCookie(reply, sessionValue, 7 * 24 * 60 * 60);
+        return reply.code(201).send({ success: true, user: user.username });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "";
+        if (message.includes("duplicate") || message.includes("unique")) {
+          return reply.code(409).send({ error: "Username already taken" });
+        }
+        throw err;
+      }
+    });
+  }
 
   app.post("/api/auth/login", async (req, reply) => {
     const body = (req.body ?? {}) as { username?: unknown; password?: unknown };
     const username = typeof body.username === "string" ? body.username.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
-    const users = INConfig.auth?.users || {};
-    const storedPass = users[username];
-
-    if (!storedPass) {
+    const user = await getUserByUsername(username);
+    if (!user) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    const inputBuf = Buffer.from(password);
-    const storedBuf = Buffer.from(storedPass);
-
-    let valid = false;
-    if (inputBuf.length === storedBuf.length) {
-      valid = crypto.timingSafeEqual(inputBuf, storedBuf);
-    } else {
-      const inputHash = crypto.createHash("sha256").update(password).digest();
-      const storedHash = crypto.createHash("sha256").update(storedPass).digest();
-      valid = crypto.timingSafeEqual(inputHash, storedHash);
-    }
-
+    const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    const sessionValue = createSession(username);
+    const sessionValue = await createSessionCookie(user);
     setSessionCookie(reply, sessionValue, 7 * 24 * 60 * 60);
     return reply.code(200).send({ success: true });
   });
 
   app.post("/api/auth/logout", async (req, reply) => {
-    const session = parseSessionCookie(req.headers.cookie);
+    const session = await parseSessionCookie(req.headers.cookie);
     if (session) {
-      destroySession(session.id);
+      await destroySessionById(session.id);
     }
     clearSessionCookie(reply);
     return reply.code(200).send({ success: true });
   });
 
   app.get("/api/auth/session", async (req, reply) => {
-    const session = parseSessionCookie(req.headers.cookie);
+    const session = await parseSessionCookie(req.headers.cookie);
     if (!session) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
     return reply.code(200).send({ user: session.username });
+  });
+
+  app.get("/api/admin/users", async (req, reply) => {
+    const session = await parseSessionCookie(req.headers.cookie);
+    if (!session || session.username !== ADMIN_USERNAME) {
+      return reply.code(403).send({ error: "Forbidden" });
+    }
+
+    try {
+      const users = await listUsers();
+      return reply.code(200).send({ users });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return reply.code(500).send({ error: message });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", async (req, reply) => {
+    const session = await parseSessionCookie(req.headers.cookie);
+    if (!session || session.username !== ADMIN_USERNAME) {
+      return reply.code(403).send({ error: "Forbidden" });
+    }
+
+    const id = Number.parseInt((req.params as { id: string }).id, 10);
+    if (Number.isNaN(id)) {
+      return reply.code(400).send({ error: "Invalid user ID" });
+    }
+
+    try {
+      const users = await listUsers();
+      const target = users.find((u) => u.id === id);
+      if (!target) {
+        return reply.code(404).send({ error: "User not found" });
+      }
+      if (target.username === ADMIN_USERNAME) {
+        return reply.code(403).send({ error: "Cannot delete the admin user" });
+      }
+
+      await deleteUser(id);
+      return reply.code(200).send({ success: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return reply.code(500).send({ error: message });
+    }
+  });
+
+  app.patch("/api/admin/users/:id", async (req, reply) => {
+    const session = await parseSessionCookie(req.headers.cookie);
+    if (!session || session.username !== ADMIN_USERNAME) {
+      return reply.code(403).send({ error: "Forbidden" });
+    }
+
+    const id = Number.parseInt((req.params as { id: string }).id, 10);
+    if (Number.isNaN(id)) {
+      return reply.code(400).send({ error: "Invalid user ID" });
+    }
+
+    const body = (req.body ?? {}) as { password?: unknown; is_admin?: unknown };
+    const updates: { password?: string; is_admin?: boolean } = {};
+
+    if (body.password !== undefined) {
+      if (typeof body.password !== "string" || body.password.length < 8) {
+        return reply.code(400).send({ error: "Password must be at least 8 characters" });
+      }
+      updates.password = body.password;
+    }
+
+    if (body.is_admin !== undefined) {
+      updates.is_admin = body.is_admin === true || body.is_admin === "true";
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return reply.code(400).send({ error: "No valid fields to update" });
+    }
+
+    try {
+      const users = await listUsers();
+      const target = users.find((u) => u.id === id);
+      if (!target) {
+        return reply.code(404).send({ error: "User not found" });
+      }
+
+      // Prevent demoting or changing the armsn user via this endpoint.
+      if (target.username === ADMIN_USERNAME && updates.is_admin !== undefined) {
+        return reply.code(403).send({ error: "Cannot modify the admin user's privileges" });
+      }
+
+      await updateUser(id, updates);
+
+      // If the password was reset, invalidate all existing sessions for the
+      // user so the old password/session cannot be reused.
+      if (updates.password !== undefined) {
+        await deleteSessionsByUser(id);
+      }
+
+      return reply.code(200).send({ success: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return reply.code(500).send({ error: message });
+    }
   });
 
   if (obfuscationMaps) {
@@ -471,8 +654,8 @@ self.addEventListener("fetch", (event) => {
     }
   }, 60_000);
 
-  function getChatUser(req: FastifyRequest): string {
-    const session = (req as FastifyRequest & { session?: Session }).session || parseSessionCookie(req.headers.cookie);
+  async function getChatUser(req: FastifyRequest): Promise<string> {
+    const session = (req as FastifyRequest & { session?: Session }).session || (await parseSessionCookie(req.headers.cookie));
     return session?.username || "unknown";
   }
 
@@ -490,7 +673,7 @@ self.addEventListener("fetch", (event) => {
       return reply.code(400).send({ error: "Message too long (max 1000 chars)" });
     }
 
-    const user = getChatUser(req);
+    const user = await getChatUser(req);
     const now = Date.now();
     const lastPost = chatRateLimits.get(user) ?? 0;
     if (now - lastPost < 1000) {
@@ -733,6 +916,13 @@ self.addEventListener("fetch", (event) => {
   } else {
     app.use(handler);
   }
+  setInterval(
+    () => {
+      void cleanupExpiredSessions().catch(() => {});
+    },
+    60 * 60 * 1000,
+  );
+
   app.listen({ port }, (err, addr) => {
     if (err) {
       console.error("Server failed to start:", err);

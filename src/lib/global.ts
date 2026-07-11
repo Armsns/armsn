@@ -139,6 +139,11 @@ document.addEventListener("astro:page-load", () => {
     const { signal } = panicAbortController;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const active = document.activeElement;
+      const activeTag = active?.tagName;
+      if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") return;
+      if (active?.getAttribute("contenteditable") === "true") return;
+
       if (event.key === "Shift") {
         Shift = true;
         return;

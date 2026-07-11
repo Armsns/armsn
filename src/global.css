@@ -279,8 +279,8 @@
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -288,17 +288,23 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1f2b22;
-  border-radius: 2px;
+  background: var(--border);
+  border-radius: 3px;
+}
+
+@supports (background: color-mix(in srgb, black, white)) {
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--border) 80%, var(--text-muted));
+  }
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3a2e;
+  background: var(--border-light);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1f2b22 transparent;
+  scrollbar-color: var(--border) transparent;
 }
 
 [type="search"]::-webkit-search-cancel-button {
@@ -334,8 +340,10 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 1px rgba(0, 255, 128, 0.15);
 }
 
-*, *::before, *::after {
-  transition-property: color, background-color, border-color, opacity, transform, box-shadow;
+*,
+*::before,
+*::after {
+  transition-property: color, background-color, border-color, opacity;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }

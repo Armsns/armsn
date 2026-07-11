@@ -52,8 +52,7 @@ const GET = async ({ params }) => {
         "x-content-type-options": "nosniff"
       }
     });
-  } catch (e) {
-    console.error("Asset proxy error:", e);
+  } catch {
     return new Response("Error fetching data", { status: 500 });
   }
 };

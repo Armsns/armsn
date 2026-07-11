@@ -1,6 +1,6 @@
-import { c as createComponent, r as renderComponent, b as renderTemplate } from '../chunks/astro/server_qhutUUez.mjs';
+import { c as createComponent, r as renderComponent, b as renderTemplate } from '../chunks/astro/server_ClWiFMrX.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../chunks/Layout_v_zBSKpa.mjs';
+import { $ as $$Layout } from '../chunks/Layout_COdX9Zvp.mjs';
 import { jsxs, jsx } from 'react/jsx-runtime';
 import { X, Plus, Home, ChevronLeft, ChevronRight, RotateCw, Lock, Star, Maximize2 } from 'lucide-react';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
@@ -33,7 +33,7 @@ const formatUrl = (value) => {
 };
 const classNames = (...classes) => classes.filter(Boolean).join(" ");
 const iconButtonClass = "inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary transition-all hover:text-accent hover:bg-white/5";
-const tabButtonClass = "group relative flex h-8 max-w-[180px] cursor-pointer items-center gap-2 rounded px-3 transition-all";
+const tabButtonClass = "group relative flex h-8 max-w-[180px] items-center gap-2 rounded px-3 transition-all";
 const closeButtonClass = "inline-flex h-4 w-4 items-center justify-center rounded opacity-0 transition-all group-hover:opacity-100 hover:text-accent";
 const addressInputClass = "h-auto flex-1 border-0 bg-transparent p-0 text-sm text-text placeholder:text-text-placeholder focus:outline-none";
 const actionBarClass = "flex items-center gap-2 rounded border border-border bg-background px-3 py-1.5 transition-all focus-within:border-accent/30";
@@ -43,8 +43,7 @@ const getDefaultUrl = () => {
   }
   try {
     return localStorage.getItem("engine") || "https://duckduckgo.com";
-  } catch (error) {
-    console.warn("Storage access failed:", error);
+  } catch {
     return "https://duckduckgo.com";
   }
 };
@@ -78,7 +77,7 @@ function Browser() {
   const [url, setUrl] = useState("about:blank");
   const [favicons, setFavicons] = useState({});
   const [bookmarks, setBookmarks] = useState([]);
-  const [_proxyReadyTick, setProxyReadyTick] = useState(0);
+  const [, setProxyReadyTick] = useState(0);
   const [proxyReady, setProxyReady] = useState(false);
   const activeTab = useMemo(() => tabs.find((tab) => tab.active), [tabs]);
   const iframeRefs = useRef({});
@@ -91,16 +90,14 @@ function Browser() {
     try {
       const goUrl = sessionStorage.getItem("goUrl");
       if (goUrl?.trim()) firstTabUrl = goUrl;
-    } catch (error) {
-      console.warn("Session storage access failed:", error);
+    } catch {
     }
     setTabs((prev) => prev.map((tab) => ({ ...tab, url: firstTabUrl })));
     setUrl(firstTabUrl);
     try {
       const savedBookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
       setBookmarks(savedBookmarks);
-    } catch (error) {
-      console.warn("Failed to load bookmarks:", error);
+    } catch {
     }
   }, []);
   useEffect(() => {
@@ -228,8 +225,7 @@ function Browser() {
               const fullUrl = urlStr ? new URL(urlStr, iframeWindow.location.href).href : "about:blank";
               openInNewTab(fullUrl);
               return null;
-            } catch (err) {
-              console.warn("Failed to intercept window.open:", err);
+            } catch {
             }
           }
           return originalOpen.call(iframeWindow, url2, target, features);
@@ -248,8 +244,7 @@ function Browser() {
                 try {
                   const fullUrl = new URL(href, iframeWindow.location.href).href;
                   openInNewTab(fullUrl);
-                } catch (err) {
-                  console.warn("Failed to intercept link click:", err);
+                } catch {
                 }
               }
             }
@@ -267,8 +262,7 @@ function Browser() {
               try {
                 const fullUrl = new URL(href, iframeWindow.location.href).href;
                 openInNewTab(fullUrl);
-              } catch (err) {
-                console.warn("Failed to intercept middle-click:", err);
+              } catch {
               }
             }
           }
@@ -358,8 +352,7 @@ function Browser() {
       const updatedBookmarks = bookmarks.filter((b) => !(b.url === bookmarkUrl && b.Title === bookmarkTitle));
       setBookmarks(updatedBookmarks);
       localStorage.setItem("bookmarks", JSON.stringify(updatedBookmarks));
-    } catch (e) {
-      console.error("Failed to remove bookmark:", e);
+    } catch {
     }
   };
   const handleAction = (action) => {
@@ -377,7 +370,8 @@ function Browser() {
   const toggleFullscreen = () => {
     if (!activeTab) return;
     const iframe = iframeRefs.current[activeTab.id];
-    iframe?.requestFullscreen().catch((err) => console.error("Failed to enter fullscreen mode:", err));
+    iframe?.requestFullscreen()?.catch(() => {
+    });
   };
   const addBookmark = () => {
     if (!activeTab) return;
@@ -399,15 +393,14 @@ function Browser() {
         const updatedBookmarks = [...bookmarks, newBookmark];
         setBookmarks(updatedBookmarks);
         localStorage.setItem("bookmarks", JSON.stringify(updatedBookmarks));
-      } catch (e) {
-        console.error("Failed to add bookmark:", e);
+      } catch {
       }
     }
   };
   return /* @__PURE__ */ jsxs("div", { className: "flex h-screen flex-col bg-background", children: [
     /* @__PURE__ */ jsxs("div", { className: "flex items-center gap-1 bg-background-secondary/50 px-2 py-1.5 border-b border-border/50", children: [
-      tabs.map((tab) => /* @__PURE__ */ jsxs("button", { type: "button", onClick: () => setActiveTab(tab.id), className: classNames(tabButtonClass, tab.active ? "bg-background text-text border border-border/50" : "text-text-secondary hover:text-text hover:bg-white/5"), children: [
-        /* @__PURE__ */ jsxs("div", { className: "flex min-w-0 flex-1 items-center gap-2", children: [
+      tabs.map((tab) => /* @__PURE__ */ jsxs("div", { className: classNames(tabButtonClass, "group", tab.active ? "bg-background text-text border border-border/50" : "text-text-secondary hover:text-text hover:bg-white/5"), children: [
+        /* @__PURE__ */ jsxs("button", { type: "button", onClick: () => setActiveTab(tab.id), className: "flex min-w-0 flex-1 items-center gap-2 text-left", "aria-label": `Activate ${tab.title}`, children: [
           favicons[tab.id] ? /* @__PURE__ */ jsx(
             "img",
             {
@@ -508,10 +501,10 @@ function Browser() {
 }
 
 const $$Tabs = createComponent(($$result, $$props, $$slots) => {
-  return renderTemplate`${renderComponent($$result, "Layout", $$Layout, {}, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "Browser", Browser, { "client:load": true, "client:component-hydration": "load", "client:component-path": "/Users/arman/Desktop/Arm$n/src/components/Browser", "client:component-export": "default" })} ` })}`;
-}, "/Users/arman/Desktop/Arm$n/src/pages/tabs.astro", void 0);
+  return renderTemplate`${renderComponent($$result, "Layout", $$Layout, {}, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "Browser", Browser, { "client:load": true, "client:component-hydration": "load", "client:component-path": "/Users/arman/Documents/GitHub/armsn/src/components/Browser.tsx", "client:component-export": "default" })} ` })}`;
+}, "/Users/arman/Documents/GitHub/armsn/src/pages/tabs.astro", void 0);
 
-const $$file = "/Users/arman/Desktop/Arm$n/src/pages/tabs.astro";
+const $$file = "/Users/arman/Documents/GitHub/armsn/src/pages/tabs.astro";
 const $$url = "/tabs";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

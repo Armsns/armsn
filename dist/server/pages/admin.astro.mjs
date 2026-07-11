@@ -1,0 +1,28 @@
+import { c as createComponent, r as renderComponent, a as renderScript, b as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_ClWiFMrX.mjs';
+import 'piccolore';
+import { $ as $$Main, a as $$Shield } from '../chunks/Main_DSyKPxh-.mjs';
+export { renderers } from '../renderers.mjs';
+
+const $$Admin = createComponent(async ($$result, $$props, $$slots) => {
+  return renderTemplate`${renderComponent($$result, "Layout", $$Main, {}, { "default": async ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="min-h-screen pt-24 px-4 pb-12"> <div class="max-w-5xl mx-auto"> <div class="flex items-center gap-3 mb-8"> <div class="p-3 rounded-xl bg-accent/10 text-accent"> ${renderComponent($$result2, "Shield", $$Shield, { "class": "w-8 h-8", "strokeWidth": 1.5 })} </div> <div> <h1 class="text-3xl font-black text-text tracking-tight">Admin Panel</h1> <p class="text-text-secondary text-sm">Manage user accounts</p> </div> </div> <div class="rounded-2xl border border-white/10 bg-white/[0.03] shadow-2xl overflow-hidden"> <div class="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3"> <h2 class="text-lg font-semibold text-text">Users</h2> <div class="flex items-center gap-3"> <div class="relative"> <label for="users-search" class="sr-only">Search users</label> <input id="users-search" type="search" placeholder="Search users..." autocomplete="off" maxlength="32" aria-label="Search users" class="w-full sm:w-64 h-10 pl-10 pr-8 rounded-xl bg-white/[0.03] border border-white/10 text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all text-sm"> <button id="users-search-clear" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full text-text-secondary hover:text-text hover:bg-white/10 transition-colors hidden" aria-label="Clear search"> <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg> </button> <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"> <circle cx="11" cy="11" r="8"></circle> <path d="m21 21-4.3-4.3"></path> </svg> </div> <span id="user-count" class="text-sm text-text-secondary whitespace-nowrap">Loading...</span> </div> </div> <div id="users-loading" class="p-12 text-center"> <div class="inline-block w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin mb-3"></div> <p class="text-text-secondary">Loading users...</p> </div> <div id="users-error" class="hidden p-8 text-center"> <p class="text-red-400 mb-2">Failed to load users</p> <button id="retry-users" class="text-sm text-accent hover:underline">Retry</button> </div> <div id="users-empty" class="hidden p-12 text-center text-text-secondary">
+No users found.
+</div> <div id="users-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div> <div id="users-table" class="hidden divide-y divide-white/10"> <!-- User rows will be injected here --> </div> </div> </div> </div>  <div id="edit-modal" class="fixed inset-0 z-[99999] hidden items-center justify-center p-4"> <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="edit-modal-backdrop"></div> <div class="relative w-full max-w-md rounded-2xl border border-white/10 bg-background p-6 shadow-2xl"> <h3 class="text-xl font-bold text-text mb-1">Edit User</h3> <p id="edit-modal-username" class="text-text-secondary text-sm mb-5">username</p> <form id="edit-form" class="space-y-4"> <div class="space-y-2"> <label for="edit-password" class="block text-sm font-medium text-text-secondary">New Password</label> <input id="edit-password" name="password" type="password" minlength="8" class="w-full h-12 rounded-xl bg-white/[0.03] border border-white/10 px-4 text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all" placeholder="Leave blank to keep current"> <p class="text-xs text-text-secondary">Leave blank to keep the current password.</p> </div> <label class="flex items-center gap-3 cursor-pointer group"> <input id="edit-is-admin" name="is_admin" type="checkbox" class="w-5 h-5 rounded border-white/10 bg-white/[0.03] text-accent focus:ring-accent focus:ring-offset-background"> <span class="text-text-secondary group-hover:text-text transition-colors">Admin user</span> </label> <p id="edit-error" class="hidden text-sm text-red-400 text-center"></p> <div class="flex gap-3 pt-2"> <button type="button" id="edit-cancel" class="flex-1 h-12 rounded-xl border border-white/10 text-text-secondary font-medium hover:bg-white/5 transition-colors">
+Cancel
+</button> <button type="submit" id="edit-save" class="flex-1 h-12 rounded-xl bg-accent text-background font-semibold hover:bg-accent/90 transition-colors">
+Save
+</button> </div> </form> </div> </div> ` })} ${renderScript($$result, "/Users/arman/Documents/GitHub/armsn/src/pages/admin.astro?astro&type=script&index=0&lang.ts")}`;
+}, "/Users/arman/Documents/GitHub/armsn/src/pages/admin.astro", void 0);
+
+const $$file = "/Users/arman/Documents/GitHub/armsn/src/pages/admin.astro";
+const $$url = "/admin";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Admin,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };
