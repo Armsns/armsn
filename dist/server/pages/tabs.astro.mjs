@@ -1,6 +1,6 @@
-import { c as createComponent, r as renderComponent, b as renderTemplate } from '../chunks/astro/server_ClWiFMrX.mjs';
+import { c as createComponent, r as renderComponent, b as renderTemplate } from '../chunks/astro/server_qhutUUez.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../chunks/Layout_COdX9Zvp.mjs';
+import { $ as $$Layout } from '../chunks/Layout_CLEEFHfb.mjs';
 import { jsxs, jsx } from 'react/jsx-runtime';
 import { X, Plus, Home, ChevronLeft, ChevronRight, RotateCw, Lock, Star, Maximize2 } from 'lucide-react';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
@@ -501,10 +501,10 @@ function Browser() {
 }
 
 const $$Tabs = createComponent(($$result, $$props, $$slots) => {
-  return renderTemplate`${renderComponent($$result, "Layout", $$Layout, {}, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "Browser", Browser, { "client:load": true, "client:component-hydration": "load", "client:component-path": "/Users/arman/Documents/GitHub/armsn/src/components/Browser.tsx", "client:component-export": "default" })} ` })}`;
-}, "/Users/arman/Documents/GitHub/armsn/src/pages/tabs.astro", void 0);
+  return renderTemplate`${renderComponent($$result, "Layout", $$Layout, {}, { "default": ($$result2) => renderTemplate` ${renderComponent($$result2, "Browser", Browser, { "client:load": true, "client:component-hydration": "load", "client:component-path": "G:/armsn/armsn/src/components/Browser.tsx", "client:component-export": "default" })} ` })}`;
+}, "G:/armsn/armsn/src/pages/tabs.astro", void 0);
 
-const $$file = "/Users/arman/Documents/GitHub/armsn/src/pages/tabs.astro";
+const $$file = "G:/armsn/armsn/src/pages/tabs.astro";
 const $$url = "/tabs";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

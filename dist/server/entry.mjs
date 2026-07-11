@@ -1,6 +1,6 @@
 import { renderers } from './renderers.mjs';
-import { c as createExports, s as serverEntrypointModule } from './chunks/_@astrojs-ssr-adapter_CjJ7NOyS.mjs';
-import { manifest } from './manifest_DaB1eynE.mjs';
+import { c as createExports, s as serverEntrypointModule } from './chunks/_@astrojs-ssr-adapter_BoL5Pnr4.mjs';
+import { manifest } from './manifest_C1Sl4V3V.mjs';
 
 const serverIslandMap = new Map();;
 
@@ -38,8 +38,8 @@ const _manifest = Object.assign(manifest, {
 });
 const _args = {
     "mode": "middleware",
-    "client": "file:///Users/arman/Documents/GitHub/armsn/dist/client/",
-    "server": "file:///Users/arman/Documents/GitHub/armsn/dist/server/",
+    "client": "file:///G:/armsn/armsn/dist/client/",
+    "server": "file:///G:/armsn/armsn/dist/server/",
     "host": false,
     "port": 4321,
     "assets": "_astro",

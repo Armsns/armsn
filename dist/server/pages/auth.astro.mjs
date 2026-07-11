@@ -1,6 +1,6 @@
-import { c as createComponent, r as renderComponent, a as renderScript, b as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_ClWiFMrX.mjs';
+import { c as createComponent, r as renderComponent, a as renderScript, b as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_qhutUUez.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../chunks/Layout_COdX9Zvp.mjs';
+import { $ as $$Layout } from '../chunks/Layout_CLEEFHfb.mjs';
 export { renderers } from '../renderers.mjs';
 
 const $$Auth = createComponent(async ($$result, $$props, $$slots) => {
@@ -10,10 +10,10 @@ ARM<span class="text-accent text-glow animate-dollar-shimmer">$</span>N
 Sign in
 </button> <button id="auth-toggle" type="button" class="w-full text-sm text-text-secondary hover:text-text transition-colors">
 Need an account? Sign up
-</button> </form> </div> </div> ` })} ${renderScript($$result, "/Users/arman/Documents/GitHub/armsn/src/pages/auth.astro?astro&type=script&index=0&lang.ts")}`;
-}, "/Users/arman/Documents/GitHub/armsn/src/pages/auth.astro", void 0);
+</button> </form> </div> </div> ` })} ${renderScript($$result, "G:/armsn/armsn/src/pages/auth.astro?astro&type=script&index=0&lang.ts")}`;
+}, "G:/armsn/armsn/src/pages/auth.astro", void 0);
 
-const $$file = "/Users/arman/Documents/GitHub/armsn/src/pages/auth.astro";
+const $$file = "G:/armsn/armsn/src/pages/auth.astro";
 const $$url = "/auth";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

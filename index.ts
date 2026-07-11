@@ -15,6 +15,7 @@ import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { build } from "astro";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import INConfig from "./config";
+import { createConversation, getConversationParticipants, getConversationsForUser, getMessagesForConversation, type Message, sendMessage, userIsInConversation } from "./src/lib/chat-db";
 import { cleanupExpiredSessions, createSession, createUser, deleteSession, deleteSessionsByUser, deleteUser, getSession, getUserByUsername, listUsers, updateUser, userExists, verifyPassword } from "./src/lib/db";
 import { ASSET_FOLDERS, generateMaps, getClientScript, type ObfuscationMaps, ROUTES, transformCss, transformHtml, transformJs } from "./src/lib/obfuscate";
 import { NoAdminUserError, seedAdminUser } from "./src/lib/seed";
@@ -636,71 +637,135 @@ self.addEventListener("fetch", (event) => {
     });
   });
 
-  interface ChatMessage {
-    id: string;
-    user: string;
-    text: string;
-    time: string;
-  }
-
-  const chatMessages: ChatMessage[] = [];
-  const chatClients = new Set<(msg: ChatMessage) => void>();
-  const chatRateLimits = new Map<string, number>();
+  // --- DM Chat Endpoints ---
+  const chatClients = new Set<{ userId: number; send: (msg: Message) => void }>();
+  const chatRateLimits = new Map<number, number>();
 
   setInterval(() => {
     const cutoff = Date.now() - 60_000;
-    for (const [user, time] of chatRateLimits) {
-      if (time < cutoff) chatRateLimits.delete(user);
+    for (const [userId, time] of chatRateLimits) {
+      if (time < cutoff) chatRateLimits.delete(userId);
     }
   }, 60_000);
 
-  async function getChatUser(req: FastifyRequest): Promise<string> {
+  async function getChatUserId(req: FastifyRequest): Promise<number | null> {
     const session = (req as FastifyRequest & { session?: Session }).session || (await parseSessionCookie(req.headers.cookie));
-    return session?.username || "unknown";
+    if (!session) return null;
+    const user = await getUserByUsername(session.username);
+    return user ? user.id : null;
   }
 
-  app.get("/api/chat/messages", async (_req, reply) => {
-    return reply.code(200).send({ messages: chatMessages.slice(-100) });
+  app.get("/api/conversations", async (req, reply) => {
+    const userId = await getChatUserId(req);
+    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
+
+    try {
+      const conversations = await getConversationsForUser(userId);
+      return reply.code(200).send({ conversations });
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
   });
 
-  app.post("/api/chat/messages", async (req, reply) => {
-    const body = (req.body ?? {}) as { text?: unknown };
-    const text = typeof body.text === "string" ? body.text.trim() : "";
-    if (!text) {
-      return reply.code(400).send({ error: "Message text is required" });
-    }
-    if (text.length > 1000) {
-      return reply.code(400).send({ error: "Message too long (max 1000 chars)" });
+  app.post("/api/conversations", async (req, reply) => {
+    const userId = await getChatUserId(req);
+    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
+
+    const body = (req.body ?? {}) as { name?: string; usernames?: unknown };
+    const participantUsernames = Array.isArray(body.usernames) ? body.usernames : [];
+    if (participantUsernames.length === 0) {
+      return reply.code(400).send({ error: "usernames array is required" });
     }
 
-    const user = await getChatUser(req);
+    const participantIds: number[] = [];
+    for (const username of participantUsernames) {
+      if (typeof username !== "string") {
+        return reply.code(400).send({ error: "All usernames must be strings" });
+      }
+      const user = await getUserByUsername(username);
+      if (user) participantIds.push(user.id);
+    }
+
+    if (participantIds.length === 0) {
+      return reply.code(400).send({ error: "No valid participants found" });
+    }
+
+    try {
+      const conversation = await createConversation(userId, participantIds, body.name);
+      return reply.code(201).send({ conversation });
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  app.get("/api/conversations/:id/messages", async (req, reply) => {
+    const userId = await getChatUserId(req);
+    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
+
+    const conversationId = (req.params as { id: string }).id;
+    if (!conversationId) return reply.code(400).send({ error: "Conversation ID required" });
+
+    try {
+      const isMember = await userIsInConversation(userId, conversationId);
+      if (!isMember) return reply.code(403).send({ error: "Forbidden" });
+
+      const messages = await getMessagesForConversation(conversationId);
+      return reply.code(200).send({ messages });
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  app.post("/api/conversations/:id/messages", async (req, reply) => {
+    const userId = await getChatUserId(req);
+    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
+
+    const conversationId = (req.params as { id: string }).id;
+    if (!conversationId) return reply.code(400).send({ error: "Conversation ID required" });
+
+    const body = (req.body ?? {}) as { content?: unknown };
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    if (!content) {
+      return reply.code(400).send({ error: "Message content is required" });
+    }
+    if (content.length > 2000) {
+      return reply.code(400).send({ error: "Message too long (max 2000 chars)" });
+    }
+
     const now = Date.now();
-    const lastPost = chatRateLimits.get(user) ?? 0;
+    const lastPost = chatRateLimits.get(userId) ?? 0;
     if (now - lastPost < 1000) {
       return reply.code(429).send({ error: "Rate limited. Wait a second between messages." });
     }
-    chatRateLimits.set(user, now);
+    chatRateLimits.set(userId, now);
 
-    const message: ChatMessage = {
-      id: crypto.randomUUID(),
-      user,
-      text,
-      time: new Date().toISOString(),
-    };
+    try {
+      const isMember = await userIsInConversation(userId, conversationId);
+      if (!isMember) return reply.code(403).send({ error: "Forbidden" });
 
-    chatMessages.push(message);
-    if (chatMessages.length > 100) chatMessages.shift();
+      const message = await sendMessage(conversationId, userId, content);
 
-    for (const client of chatClients) {
-      try {
-        client(message);
-      } catch {}
+      const participants = await getConversationParticipants(conversationId);
+      const participantUserIds = new Set(participants.map((p) => p.user_id));
+
+      for (const client of chatClients) {
+        if (participantUserIds.has(client.userId)) {
+          try {
+            client.send(message);
+          } catch {}
+        }
+      }
+
+      return reply.code(200).send({ message });
+    } catch (err) {
+      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
     }
-
-    return reply.code(200).send(message);
   });
 
-  app.get("/api/chat/stream", async (req, reply) => {
+  app.get("/api/conversations/stream", async (req, reply) => {
+    const userId = await getChatUserId(req);
+    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
+
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, {
@@ -710,17 +775,14 @@ self.addEventListener("fetch", (event) => {
       "X-Accel-Buffering": "no",
     });
 
-    const send = (msg: ChatMessage) => {
+    const send = (msg: Message) => {
       try {
         raw.write(`data: ${JSON.stringify(msg)}\n\n`);
       } catch {}
     };
 
-    chatClients.add(send);
-
-    for (const msg of chatMessages.slice(-20)) {
-      send(msg);
-    }
+    const client = { userId, send };
+    chatClients.add(client);
 
     const keepalive = setInterval(() => {
       try {
@@ -735,7 +797,7 @@ self.addEventListener("fetch", (event) => {
       if (cleaned) return;
       cleaned = true;
       clearInterval(keepalive);
-      chatClients.delete(send);
+      chatClients.delete(client);
     };
 
     req.raw.on("close", cleanup);
