@@ -1,0 +1,22 @@
+---
+interface Props {
+  Icon: (props: astroHTML.JSX.SVGAttributes) => unknown;
+  title: string;
+  description: string;
+}
+const { Icon, title, description } = Astro.props;
+---
+
+<div class="settings-card relative z-0 p-5 bg-white/[0.03] border border-white/10 rounded-xl group hover:border-accent/30 hover:bg-white/[0.05] hover:shadow-glow transition-all duration-300">
+  <div class="absolute inset-0 rounded-xl bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+  <div class="relative">
+    <div class="flex items-center gap-2.5 mb-2">
+      <div class="flex items-center justify-center w-7 h-7 rounded-lg bg-accent/10 text-accent">
+        <Icon class="w-3.5 h-3.5" stroke-width="1.5" />
+      </div>
+      <h3 class="text-sm font-semibold text-text uppercase tracking-wide">{title}</h3>
+    </div>
+    <p class="text-xs text-text-secondary/80 mb-4 leading-relaxed">{description}</p>
+    <slot />
+  </div>
+</div>
