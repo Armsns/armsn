@@ -57,12 +57,11 @@ async function loadMessages() {
     const data = (await res.json()) as { messages: ChatMessage[] };
     messages = data.messages || [];
     renderMessages();
-  } catch (err) {
+  } catch {
     const container = document.getElementById("chat-messages");
     if (container) {
       container.innerHTML = `<p class="text-center text-red-400 text-sm">Failed to load messages.</p>`;
     }
-    console.error(err);
   }
 }
 
@@ -104,7 +103,6 @@ function connectStream() {
       return;
     }
     reconnectAttempts++;
-    console.warn("Chat stream error, reconnecting...");
     setTimeout(() => connectStream(), 3000);
   });
 }
@@ -150,9 +148,8 @@ function initChat() {
 
     try {
       await sendMessage(text);
-    } catch (err) {
+    } catch {
       alert("Failed to send message");
-      console.error(err);
     } finally {
       input.disabled = false;
       input.focus();

@@ -59,8 +59,7 @@ export const GET: APIRoute = async ({ request }) => {
         location.replace(tabsRoute);
 
       } catch (e) {
-        status.textContent = 'Error: ' + e.message;
-        console.error('Init error:', e);
+        status.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e));
       }
     }
 

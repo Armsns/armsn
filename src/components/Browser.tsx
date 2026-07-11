@@ -15,7 +15,7 @@ export default function Browser() {
   const [url, setUrl] = useState("about:blank");
   const [favicons, setFavicons] = useState<Record<number, string>>({});
   const [bookmarks, setBookmarks] = useState<Array<{ Title: string; url: string; favicon?: string }>>([]);
-  const [_proxyReadyTick, setProxyReadyTick] = useState(0);
+  const [, setProxyReadyTick] = useState(0);
   const [proxyReady, setProxyReady] = useState(false);
   const activeTab = useMemo(() => tabs.find((tab) => tab.active), [tabs]);
   const iframeRefs = useRef<Record<number, HTMLIFrameElement | null>>({});
@@ -30,8 +30,8 @@ export default function Browser() {
     try {
       const goUrl = sessionStorage.getItem("goUrl");
       if (goUrl?.trim()) firstTabUrl = goUrl;
-    } catch (error) {
-      console.warn("Session storage access failed:", error);
+    } catch {
+      // ignore storage errors
     }
 
     setTabs((prev) => prev.map((tab) => ({ ...tab, url: firstTabUrl })));
@@ -40,8 +40,8 @@ export default function Browser() {
     try {
       const savedBookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
       setBookmarks(savedBookmarks);
-    } catch (error) {
-      console.warn("Failed to load bookmarks:", error);
+    } catch {
+      // ignore storage errors
     }
   }, []);
 
@@ -196,8 +196,8 @@ export default function Browser() {
               const fullUrl = urlStr ? new URL(urlStr, iframeWindow.location.href).href : "about:blank";
               openInNewTab(fullUrl);
               return null;
-            } catch (err) {
-              console.warn("Failed to intercept window.open:", err);
+            } catch {
+              // ignore invalid URLs
             }
           }
           return originalOpen.call(iframeWindow, url, target, features);
@@ -220,8 +220,8 @@ export default function Browser() {
                 try {
                   const fullUrl = new URL(href, iframeWindow.location.href).href;
                   openInNewTab(fullUrl);
-                } catch (err) {
-                  console.warn("Failed to intercept link click:", err);
+                } catch {
+                  // ignore invalid URLs
                 }
               }
             }
@@ -243,8 +243,8 @@ export default function Browser() {
               try {
                 const fullUrl = new URL(href, iframeWindow.location.href).href;
                 openInNewTab(fullUrl);
-              } catch (err) {
-                console.warn("Failed to intercept middle-click:", err);
+              } catch {
+                // ignore invalid URLs
               }
             }
           }
@@ -351,8 +351,8 @@ export default function Browser() {
       const updatedBookmarks = bookmarks.filter((b) => !(b.url === bookmarkUrl && b.Title === bookmarkTitle));
       setBookmarks(updatedBookmarks);
       localStorage.setItem("bookmarks", JSON.stringify(updatedBookmarks));
-    } catch (e) {
-      console.error("Failed to remove bookmark:", e);
+    } catch {
+      // ignore storage errors
     }
   };
 
@@ -375,7 +375,7 @@ export default function Browser() {
   const toggleFullscreen = () => {
     if (!activeTab) return;
     const iframe = iframeRefs.current[activeTab.id];
-    iframe?.requestFullscreen().catch((err) => console.error("Failed to enter fullscreen mode:", err));
+    iframe?.requestFullscreen().catch(() => {});
   };
 
   const addBookmark = () => {
@@ -400,8 +400,8 @@ export default function Browser() {
         const updatedBookmarks = [...bookmarks, newBookmark];
         setBookmarks(updatedBookmarks);
         localStorage.setItem("bookmarks", JSON.stringify(updatedBookmarks));
-      } catch (e) {
-        console.error("Failed to add bookmark:", e);
+      } catch {
+        // ignore storage errors
       }
     }
   };

@@ -53,7 +53,7 @@ import { ClientRouter } from "astro:transitions";
       type ScramjetCtor = new (config: any) => { init: () => Promise<void> | void };
       const loadControllerFn = ((window as any).$scramjetLoadController ?? (typeof $scramjetLoadController === "function" ? $scramjetLoadController : null)) as null | (() => { ScramjetController: ScramjetCtor });
       if (!loadControllerFn) {
-        console.warn("[ARM$N] $scramjetLoadController unavailable; the proxy will not route until obfuscation is enabled or scramjet globals are exposed.");
+        // scramjet controller unavailable; proxying disabled
       } else {
         try {
           const { ScramjetController } = loadControllerFn();
@@ -76,8 +76,8 @@ import { ClientRouter } from "astro:transitions";
           window.dispatchEvent(new Event("scramjet-ready"));
 
           scramjet.init();
-        } catch (sjErr) {
-          console.warn("[ARM$N] scramjet controller init failed - the page will still work, but proxying will be disabled:", sjErr);
+        } catch {
+          // scramjet controller init failed; proxying disabled
         }
       }
       const swVersion = (window as Window & { _3?: string })._3 || "0";
@@ -100,8 +100,8 @@ import { ClientRouter } from "astro:transitions";
       let reg: ServiceWorkerRegistration | undefined;
       try {
         reg = await navigator.serviceWorker.register(`/sw.js?v=${swVersion}`, { updateViaCache: "none" });
-      } catch (swErr) {
-        console.warn("[ARM$N] Service worker failed to register - the proxy will not route:", swErr);
+      } catch {
+        // service worker failed to register; proxying disabled
       }
 
       try {

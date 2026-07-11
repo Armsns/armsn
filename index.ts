@@ -17,7 +17,6 @@ import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import INConfig from "./config";
 import { ASSET_FOLDERS, generateMaps, getClientScript, type ObfuscationMaps, ROUTES, transformCss, transformHtml, transformJs } from "./src/lib/obfuscate";
 import { getSyncStatus, syncGames } from "./src/lib/sync";
-import { getTextCanvasClientScript, transformTextInHtml } from "./src/lib/text-canvas";
 
 const UPSTREAM_BRANCH = "main";
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -586,7 +585,6 @@ self.addEventListener("fetch", (event) => {
   if (obfuscationMaps) {
     const maps = obfuscationMaps;
     const routeScript = getClientScript(maps);
-    const textScript = getTextCanvasClientScript(maps.textKey);
 
     const transformMiddleware = (_req: IncomingMessage, res: ServerResponse, next: () => void) => {
       const originalWriteHead = res.writeHead.bind(res);
@@ -698,8 +696,7 @@ self.addEventListener("fetch", (event) => {
 
           if (contentType === "html") {
             content = transformHtml(content, maps);
-            content = transformTextInHtml(content, maps.textKey);
-            content = content.replace(/<\/head>/i, `${routeScript}${textScript}</head>`);
+            content = content.replace(/<\/head>/i, `${routeScript}</head>`);
           } else if (contentType === "css") {
             content = transformCss(content, maps);
           } else if (contentType === "js") {

@@ -8,10 +8,6 @@ export interface Tab {
   reloadKey: number;
 }
 
-export const getProxyEngine = (): "scramjet" => "scramjet";
-
-export const baseTabs: Tab[] = [{ id: 1, title: "Tab 1", url: "about:blank", active: true, reloadKey: 0 }];
-
 export const formatUrl = (value: string): string => {
   if (!value.trim()) return "about:blank";
 
@@ -39,8 +35,7 @@ export const getDefaultUrl = (): string => {
 
   try {
     return localStorage.getItem("engine") || "https://duckduckgo.com";
-  } catch (error) {
-    console.warn("Storage access failed:", error);
+  } catch {
     return "https://duckduckgo.com";
   }
 };
@@ -93,7 +88,7 @@ export const getActualUrl = (iframe: HTMLIFrameElement | null): string => {
 };
 
 export const toggleFullscreen = (iframeRefs: { [key: number]: HTMLIFrameElement | null }, tabId: number) => {
-  iframeRefs[tabId]?.requestFullscreen().catch((err) => console.error("Fullscreen failed:", err));
+  iframeRefs[tabId]?.requestFullscreen().catch(() => {});
 };
 
 export const addBookmark = (iframeRefs: { [key: number]: HTMLIFrameElement | null }, tabId: number, tabTitle: string, tabUrl: string) => {
@@ -109,8 +104,7 @@ export const addBookmark = (iframeRefs: { [key: number]: HTMLIFrameElement | nul
     bookmarks.push({ Title: title, url: actualUrl });
     localStorage.setItem("bookmarks", JSON.stringify(bookmarks));
     alert("Bookmark added successfully!");
-  } catch (err) {
-    console.error("Failed to add bookmark:", err);
+  } catch {
     alert("Failed to add bookmark. Storage may be blocked.");
   }
 };
