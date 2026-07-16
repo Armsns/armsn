@@ -5,7 +5,8 @@ module.exports = {
       fontFamily: {
         mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "monospace"],
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["JetBrains Mono", "Inter", "ui-monospace", "monospace"],
+        display: ["Minecraft", "JetBrains Mono", "monospace"],
+        pixel: ["Minecraft", "monospace"],
       },
       colors: {
         background: {

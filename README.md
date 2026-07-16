@@ -48,34 +48,22 @@ By default the server listens on `http://localhost:8080`.
 
 ### Environment variables
 
-| Variable                   | Default  | Description                                                       |
-| -------------------------- | -------- | ----------------------------------------------------------------- |
-| `PORT`                     | `8080`   | Port the server listens on                                        |
-| `OBFUSCATE`                | `true`   | Disable to skip route/asset name obfuscation                      |
-| `COMPRESS`                 | `true`   | Disable to skip built-in compression                              |
-| `AUTH_CHALLENGE`           | `false`  | Enable login protection for the whole site                        |
-| `AUTH_USER`                | -        | First admin username (use with `AUTH_PASS`)                       |
-| `AUTH_PASS`                | -        | First admin password                                              |
-| `SUPABASE_URL`             | -        | Supabase project URL (required when `AUTH_CHALLENGE=true`)        |
-| `SUPABASE_SERVICE_ROLE_KEY`| -        | Supabase service role key (required when `AUTH_CHALLENGE=true`)   |
-| `AUTH_SECRET`              | random   | Secret used to sign session cookies                               |
+| Variable          | Default | Description                                                       |
+| ----------------- | ------- | ----------------------------------------------------------------- |
+| `PORT`            | `8080`  | Port the server listens on                                        |
+| `OBFUSCATE`       | `true`  | Disable to skip route/asset name obfuscation                      |
+| `COMPRESS`        | `true`  | Disable to skip built-in compression                              |
+| `AUTH_CHALLENGE`  | `false` | Enable HTTP basic auth for the whole site                         |
+| `AUTH_USER`       | -       | Single basic-auth username (use with `AUTH_PASS`)                 |
+| `AUTH_PASS`       | -       | Single basic-auth password                                        |
+| `AUTH_USERS`      | -       | JSON object of `{ "user": "password" }` for multiple users        |
 
 ### Password protection
 
-ARM$N stores users and sessions in Supabase. When `AUTH_CHALLENGE=true`, you must:
-
-1. Create a Supabase project at https://supabase.com.
-2. Run the SQL in `supabase/schema.sql` in the Supabase SQL Editor.
-3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
-4. Set `AUTH_USER` and `AUTH_PASS` to create the first admin user on startup.
-
 ```bash
-AUTH_CHALLENGE=true \
-  AUTH_USER=admin \
-  AUTH_PASS=hunter2 \
-  SUPABASE_URL=https://your-project.supabase.co \
-  SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
-  bun run start
+AUTH_CHALLENGE=true AUTH_USER=admin AUTH_PASS=hunter2 bun run start
+# or
+AUTH_CHALLENGE=true AUTH_USERS='{"admin":"hunter2","guest":"letmein"}' bun run start
 ```
 
 ## Theming

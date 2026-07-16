@@ -1,0 +1,7 @@
+
+> armn@7.0.0 start
+> tsx index.ts
+
+Server listening on http://[::1]:8080
+[armn-sync] SYNC_TOKEN not set — POST /api/sync-games is unauthenticated. Set SYNC_TOKEN before exposing publicly.
+[armn-sync] 2026-07-16T06:17:53.172Z not-modified upstream=main etag=W/"6c3b16526ca873cc78dc59e65ac42db61b9d5f636c7bc1017b81dfc443c0bc68" in 94ms

@@ -1,1 +1,0 @@
-function n(n){const o=window._0;return o?.[n]?`/${o[n]}`:`/${n}`}function c(n){return window._2?.[n]??n}export{n as a,c as g};

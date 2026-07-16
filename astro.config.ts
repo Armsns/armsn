@@ -13,9 +13,7 @@ import INConfig from "./config";
 
 const integrations = [react(), tailwind({ applyBaseStyles: false })];
 
-const isBuild = process.argv.includes("build");
-
-if (isBuild && INConfig.server?.compress !== false) {
+if (INConfig.server?.compress !== false) {
   integrations.push(
     compress({
       CSS: false,

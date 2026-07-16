@@ -7,6 +7,31 @@ import type { Socket } from "node:net";
 import path from "node:path";
 import zlib from "node:zlib";
 
+const scrypt = (password: string, salt: string, keylen: number): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, keylen, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(derivedKey);
+    });
+  });
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = (await scrypt(password, salt, 64)).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  try {
+    const computed = (await scrypt(password, salt, 64)).toString("hex");
+    return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(hash));
+  } catch {
+    return false;
+  }
+}
+
 EventEmitter.defaultMaxListeners = 50;
 
 import fastifyMiddie from "@fastify/middie";
@@ -14,13 +39,10 @@ import fastifyStatic from "@fastify/static";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { build } from "astro";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
-import INConfig from "./config";
-import { createConversation, getConversationParticipants, getConversationsForUser, getMessagesForConversation, type Message, sendMessage, userIsInConversation } from "./src/lib/chat-db";
-import { cleanupExpiredSessions, createSession, createUser, deleteSession, deleteSessionsByUser, deleteUser, getSession, getUserByUsername, listUsers, updateUser, userExists, verifyPassword } from "./src/lib/db";
+import INConfig from "./config.js";
 import { ASSET_FOLDERS, generateMaps, getClientScript, type ObfuscationMaps, ROUTES, transformCss, transformHtml, transformJs } from "./src/lib/obfuscate";
-import { NoAdminUserError, seedAdminUser } from "./src/lib/seed";
 import { getSyncStatus, syncGames } from "./src/lib/sync";
-import { validateDatabase } from "./src/lib/validate-db";
+import { getTextCanvasClientScript, transformTextInHtml } from "./src/lib/text-canvas";
 
 const UPSTREAM_BRANCH = "main";
 const SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -71,23 +93,13 @@ async function Start() {
   }
 
   if (INConfig.auth?.challenge) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("\x1b[31mError: AUTH_CHALLENGE is enabled but Supabase is not configured.\x1b[0m");
-      console.error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.");
+    if (Object.keys(INConfig.auth.users || {}).length === 0) {
+      console.error("\x1b[31mError: AUTH_CHALLENGE is enabled but no users configured.\x1b[0m");
+      console.error("Set AUTH_USER and AUTH_PASS environment variables, or AUTH_USERS as JSON.");
+      console.error("Example: AUTH_USER=admin AUTH_PASS=secretpassword");
+      console.error('Example: AUTH_USERS=\'{"admin":"password123"}\'');
       process.exit(1);
     }
-    await validateDatabase().catch((err) => {
-      console.error("\x1b[31m[auth] Database validation failed:\x1b[0m", err.message);
-      process.exit(1);
-    });
-    await seedAdminUser().catch((err) => {
-      if (err instanceof NoAdminUserError) {
-        console.error("\x1b[31m[auth]", err.message, "\x1b[0m");
-      } else {
-        console.error("\x1b[31m[auth] Failed to seed admin user:\x1b[0m", err.message);
-      }
-      process.exit(1);
-    });
   }
 
   interface Session {
@@ -96,25 +108,52 @@ async function Start() {
     expiresAt: number;
   }
 
+  const sessions = new Map<string, Session>();
   const SESSION_COOKIE = "armn_session";
   const SESSION_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
   const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  const usersFile = path.join(dataDir, "users.json");
+
+  let dynamicUsers: Record<string, string> = {};
+  if (fs.existsSync(usersFile)) {
+    try {
+      dynamicUsers = JSON.parse(fs.readFileSync(usersFile, "utf8"));
+    } catch {
+      console.error("[ARM$N] Failed to parse data/users.json");
+    }
+  }
+
+  function saveDynamicUsers(): void {
+    fs.writeFileSync(usersFile, JSON.stringify(dynamicUsers, null, 2));
+  }
+
+  const adminUser = process.env.ADMIN_USER || process.env.AUTH_USER || "";
+  if (!adminUser) {
+    console.warn("[ARM$N] ADMIN_USER or AUTH_USER is not set. The admin panel will be inaccessible.");
+  }
 
   function signSessionId(sessionId: string): string {
     return crypto.createHmac("sha256", SESSION_SECRET).update(sessionId).digest("base64url");
   }
 
-  async function createSessionCookie(user: { id: number; username: string }): Promise<string> {
-    const expiresAt = Date.now() + SESSION_MAX_AGE_MS;
-    const sessionId = await createSession(user, expiresAt);
+  function createSession(username: string): string {
+    const sessionId = crypto.randomUUID();
+    sessions.set(sessionId, {
+      id: sessionId,
+      username,
+      expiresAt: Date.now() + SESSION_MAX_AGE_MS,
+    });
     return `${sessionId}.${signSessionId(sessionId)}`;
   }
 
-  async function destroySessionById(sessionId: string): Promise<void> {
-    await deleteSession(sessionId);
+  function destroySession(sessionId: string): void {
+    sessions.delete(sessionId);
   }
 
-  async function parseSessionCookie(cookieHeader: string | undefined): Promise<Session | null> {
+  function parseSessionCookie(cookieHeader: string | undefined): Session | null {
     if (!cookieHeader) return null;
     const cookies = cookieHeader.split(";").map((c) => c.trim());
     for (const cookie of cookies) {
@@ -124,9 +163,9 @@ async function Start() {
         if (!sessionId || !signature) return null;
         const expected = signSessionId(sessionId);
         if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
-        const session = await getSession(sessionId);
-        if (!session || session.expires_at < Date.now()) return null;
-        return { id: session.id, username: session.username, expiresAt: session.expires_at };
+        const session = sessions.get(sessionId);
+        if (!session || session.expiresAt < Date.now()) return null;
+        return session;
       }
     }
     return null;
@@ -140,9 +179,8 @@ async function Start() {
     reply.header("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   }
 
-  const PUBLIC_PATHS = ["/auth", "/login", "/register", "/api/auth/login", "/api/auth/register", "/sw.js", "/favicon.svg"];
-  const ADMIN_USERNAME = "armsn";
-  const PUBLIC_PREFIXES = ["/assets/", "/favicon", "/_astro/", "/@"];
+  const PUBLIC_PATHS = ["/login", "/api/auth/login", "/sw.js", "/favicon.svg"];
+  const PUBLIC_PREFIXES = ["/assets/", "/favicon", "/_astro/", "/@", "/fonts/"];
 
   function isPublicPath(url: string): boolean {
     for (const publicPath of PUBLIC_PATHS) {
@@ -158,20 +196,9 @@ async function Start() {
     if (!INConfig.auth?.challenge) return;
     if (isPublicPath(req.url)) return;
 
-    const session = await parseSessionCookie(req.headers.cookie);
+    const session = parseSessionCookie(req.headers.cookie);
     if (session) {
       (req as FastifyRequest & { session?: Session }).session = session;
-
-      // Restrict admin routes to the armsn user.
-      if (req.url === "/admin" || req.url.startsWith("/admin/") || req.url.startsWith("/api/admin/")) {
-        if (session.username !== ADMIN_USERNAME) {
-          const accept = req.headers.accept || "";
-          if (accept.includes("application/json") || req.url.startsWith("/api/")) {
-            return reply.code(403).send({ error: "Forbidden" });
-          }
-          return reply.redirect("/");
-        }
-      }
       return;
     }
 
@@ -180,220 +207,127 @@ async function Start() {
       return reply.code(401).send({ error: "Unauthorized" });
     }
 
-    return reply.redirect("/auth");
+    return reply.redirect("/login");
   });
-
-  const registrationAttempts = new Map<string, number[]>();
-  const REGISTER_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-  const REGISTER_RATE_LIMIT_MAX = 5;
-
-  function isRateLimited(ip: string): boolean {
-    const now = Date.now();
-    const attempts = registrationAttempts.get(ip) ?? [];
-    const recent = attempts.filter((time) => now - time < REGISTER_RATE_LIMIT_WINDOW_MS);
-    if (recent.length === 0) {
-      registrationAttempts.delete(ip);
-    } else {
-      registrationAttempts.set(ip, recent);
-    }
-    return recent.length >= REGISTER_RATE_LIMIT_MAX;
-  }
-
-  function recordAttempt(ip: string): void {
-    const attempts = registrationAttempts.get(ip) ?? [];
-    attempts.push(Date.now());
-    registrationAttempts.set(ip, attempts);
-  }
-
-  if (INConfig.auth?.challenge) {
-    app.get("/login", async (_req, reply) => {
-      return reply.redirect("/auth");
-    });
-
-    app.get("/register", async (_req, reply) => {
-      return reply.redirect("/auth");
-    });
-
-    app.post("/api/auth/register", async (req, reply) => {
-      const clientIp = req.ip ?? "unknown";
-      recordAttempt(clientIp);
-      if (isRateLimited(clientIp)) {
-        return reply.code(429).send({ error: "Too many registration attempts. Try again later." });
-      }
-
-      const body = (req.body ?? {}) as { username?: unknown; password?: unknown; confirmPassword?: unknown };
-      const username = typeof body.username === "string" ? body.username.trim() : "";
-      const password = typeof body.password === "string" ? body.password : "";
-      const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
-
-      if (!username || username.length < 3 || username.length > 32) {
-        return reply.code(400).send({ error: "Username must be 3-32 characters" });
-      }
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-        return reply.code(400).send({ error: "Username can only contain letters, numbers, and underscores" });
-      }
-      if (!password || password.length < 8) {
-        return reply.code(400).send({ error: "Password must be at least 8 characters" });
-      }
-      if (password !== confirmPassword) {
-        return reply.code(400).send({ error: "Passwords do not match" });
-      }
-
-      const exists = await userExists(username);
-      if (exists) {
-        return reply.code(409).send({ error: "Username already taken" });
-      }
-
-      try {
-        const user = await createUser(username, password, false);
-        const sessionValue = await createSessionCookie(user);
-        setSessionCookie(reply, sessionValue, 7 * 24 * 60 * 60);
-        return reply.code(201).send({ success: true, user: user.username });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "";
-        if (message.includes("duplicate") || message.includes("unique")) {
-          return reply.code(409).send({ error: "Username already taken" });
-        }
-        throw err;
-      }
-    });
-  }
 
   app.post("/api/auth/login", async (req, reply) => {
     const body = (req.body ?? {}) as { username?: unknown; password?: unknown };
     const username = typeof body.username === "string" ? body.username.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
-    const user = await getUserByUsername(username);
-    if (!user) {
+    const users = INConfig.auth?.users || {};
+    const storedPass = users[username] ?? dynamicUsers[username];
+
+    if (!storedPass) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    const valid = await verifyPassword(password, user.password_hash);
-    if (!valid) {
+    const envUserPass = users[username];
+    if (envUserPass) {
+      const inputBuf = Buffer.from(password);
+      const storedBuf = Buffer.from(envUserPass);
+      if (inputBuf.length !== storedBuf.length || !crypto.timingSafeEqual(inputBuf, storedBuf)) {
+        return reply.code(401).send({ error: "Invalid credentials" });
+      }
+    } else if (!(await verifyPassword(password, storedPass))) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    const sessionValue = await createSessionCookie(user);
+    const sessionValue = createSession(username);
     setSessionCookie(reply, sessionValue, 7 * 24 * 60 * 60);
     return reply.code(200).send({ success: true });
   });
 
   app.post("/api/auth/logout", async (req, reply) => {
-    const session = await parseSessionCookie(req.headers.cookie);
+    const session = parseSessionCookie(req.headers.cookie);
     if (session) {
-      await destroySessionById(session.id);
+      destroySession(session.id);
     }
     clearSessionCookie(reply);
     return reply.code(200).send({ success: true });
   });
 
   app.get("/api/auth/session", async (req, reply) => {
-    const session = await parseSessionCookie(req.headers.cookie);
+    const session = parseSessionCookie(req.headers.cookie);
     if (!session) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-    return reply.code(200).send({ user: session.username });
+    return reply.code(200).send({ user: session.username, isAdmin: session.username === adminUser });
   });
+
+  function isAdminSession(cookieHeader: string | undefined): boolean {
+    const session = parseSessionCookie(cookieHeader);
+    return session !== null && session.username === adminUser;
+  }
 
   app.get("/api/admin/users", async (req, reply) => {
-    const session = await parseSessionCookie(req.headers.cookie);
-    if (!session || session.username !== ADMIN_USERNAME) {
+    if (!isAdminSession(req.headers.cookie)) {
       return reply.code(403).send({ error: "Forbidden" });
     }
-
-    try {
-      const users = await listUsers();
-      return reply.code(200).send({ users });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return reply.code(500).send({ error: message });
-    }
+    return reply.code(200).send({ users: Object.keys(dynamicUsers) });
   });
 
-  app.delete("/api/admin/users/:id", async (req, reply) => {
-    const session = await parseSessionCookie(req.headers.cookie);
-    if (!session || session.username !== ADMIN_USERNAME) {
+  app.post("/api/admin/users", async (req, reply) => {
+    if (!isAdminSession(req.headers.cookie)) {
       return reply.code(403).send({ error: "Forbidden" });
     }
-
-    const id = Number.parseInt((req.params as { id: string }).id, 10);
-    if (Number.isNaN(id)) {
-      return reply.code(400).send({ error: "Invalid user ID" });
+    const body = (req.body ?? {}) as { username?: unknown; password?: unknown };
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    if (!username || !password) {
+      return reply.code(400).send({ error: "Username and password are required" });
     }
-
-    try {
-      const users = await listUsers();
-      const target = users.find((u) => u.id === id);
-      if (!target) {
-        return reply.code(404).send({ error: "User not found" });
-      }
-      if (target.username === ADMIN_USERNAME) {
-        return reply.code(403).send({ error: "Cannot delete the admin user" });
-      }
-
-      await deleteUser(id);
-      return reply.code(200).send({ success: true });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return reply.code(500).send({ error: message });
+    if (password.length < 6) {
+      return reply.code(400).send({ error: "Password must be at least 6 characters" });
     }
+    if (username === adminUser) {
+      return reply.code(409).send({ error: "Cannot create a user with the admin username" });
+    }
+    if (dynamicUsers[username]) {
+      return reply.code(409).send({ error: "User already exists" });
+    }
+    dynamicUsers[username] = await hashPassword(password);
+    saveDynamicUsers();
+    return reply.code(200).send({ success: true, username });
   });
 
-  app.patch("/api/admin/users/:id", async (req, reply) => {
-    const session = await parseSessionCookie(req.headers.cookie);
-    if (!session || session.username !== ADMIN_USERNAME) {
+  app.delete("/api/admin/users/:username", async (req, reply) => {
+    if (!isAdminSession(req.headers.cookie)) {
       return reply.code(403).send({ error: "Forbidden" });
     }
-
-    const id = Number.parseInt((req.params as { id: string }).id, 10);
-    if (Number.isNaN(id)) {
-      return reply.code(400).send({ error: "Invalid user ID" });
+    const { username } = req.params as { username: string };
+    if (username === adminUser) {
+      return reply.code(400).send({ error: "Cannot delete the admin account" });
     }
-
-    const body = (req.body ?? {}) as { password?: unknown; is_admin?: unknown };
-    const updates: { password?: string; is_admin?: boolean } = {};
-
-    if (body.password !== undefined) {
-      if (typeof body.password !== "string" || body.password.length < 8) {
-        return reply.code(400).send({ error: "Password must be at least 8 characters" });
-      }
-      updates.password = body.password;
+    if (dynamicUsers[username]) {
+      delete dynamicUsers[username];
+      saveDynamicUsers();
     }
+    return reply.code(200).send({ success: true });
+  });
 
-    if (body.is_admin !== undefined) {
-      updates.is_admin = body.is_admin === true || body.is_admin === "true";
+  app.patch("/api/admin/users/:username/password", async (req, reply) => {
+    if (!isAdminSession(req.headers.cookie)) {
+      return reply.code(403).send({ error: "Forbidden" });
     }
-
-    if (Object.keys(updates).length === 0) {
-      return reply.code(400).send({ error: "No valid fields to update" });
+    const { username } = req.params as { username: string };
+    const body = (req.body ?? {}) as { password?: unknown };
+    const password = typeof body.password === "string" ? body.password : "";
+    if (!password) {
+      return reply.code(400).send({ error: "Password is required" });
     }
-
-    try {
-      const users = await listUsers();
-      const target = users.find((u) => u.id === id);
-      if (!target) {
-        return reply.code(404).send({ error: "User not found" });
-      }
-
-      // Prevent demoting or changing the armsn user via this endpoint.
-      if (target.username === ADMIN_USERNAME && updates.is_admin !== undefined) {
-        return reply.code(403).send({ error: "Cannot modify the admin user's privileges" });
-      }
-
-      await updateUser(id, updates);
-
-      // If the password was reset, invalidate all existing sessions for the
-      // user so the old password/session cannot be reused.
-      if (updates.password !== undefined) {
-        await deleteSessionsByUser(id);
-      }
-
-      return reply.code(200).send({ success: true });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return reply.code(500).send({ error: message });
+    if (password.length < 6) {
+      return reply.code(400).send({ error: "Password must be at least 6 characters" });
     }
+    if (username === adminUser) {
+      return reply.code(400).send({ error: "Cannot reset the admin account password from here" });
+    }
+    if (!dynamicUsers[username]) {
+      return reply.code(404).send({ error: "User not found" });
+    }
+    dynamicUsers[username] = await hashPassword(password);
+    saveDynamicUsers();
+    return reply.code(200).send({ success: true, username });
   });
 
   if (obfuscationMaps) {
@@ -637,135 +571,71 @@ self.addEventListener("fetch", (event) => {
     });
   });
 
-  // --- DM Chat Endpoints ---
-  const chatClients = new Set<{ userId: number; send: (msg: Message) => void }>();
-  const chatRateLimits = new Map<number, number>();
+  interface ChatMessage {
+    id: string;
+    user: string;
+    text: string;
+    time: string;
+  }
+
+  const chatMessages: ChatMessage[] = [];
+  const chatClients = new Set<(msg: ChatMessage) => void>();
+  const chatRateLimits = new Map<string, number>();
 
   setInterval(() => {
     const cutoff = Date.now() - 60_000;
-    for (const [userId, time] of chatRateLimits) {
-      if (time < cutoff) chatRateLimits.delete(userId);
+    for (const [user, time] of chatRateLimits) {
+      if (time < cutoff) chatRateLimits.delete(user);
     }
   }, 60_000);
 
-  async function getChatUserId(req: FastifyRequest): Promise<number | null> {
-    const session = (req as FastifyRequest & { session?: Session }).session || (await parseSessionCookie(req.headers.cookie));
-    if (!session) return null;
-    const user = await getUserByUsername(session.username);
-    return user ? user.id : null;
+  function getChatUser(req: FastifyRequest): string {
+    const session = (req as FastifyRequest & { session?: Session }).session || parseSessionCookie(req.headers.cookie);
+    return session?.username || "unknown";
   }
 
-  app.get("/api/conversations", async (req, reply) => {
-    const userId = await getChatUserId(req);
-    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
-
-    try {
-      const conversations = await getConversationsForUser(userId);
-      return reply.code(200).send({ conversations });
-    } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
-    }
+  app.get("/api/chat/messages", async (_req, reply) => {
+    return reply.code(200).send({ messages: chatMessages.slice(-100) });
   });
 
-  app.post("/api/conversations", async (req, reply) => {
-    const userId = await getChatUserId(req);
-    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
-
-    const body = (req.body ?? {}) as { name?: string; usernames?: unknown };
-    const participantUsernames = Array.isArray(body.usernames) ? body.usernames : [];
-    if (participantUsernames.length === 0) {
-      return reply.code(400).send({ error: "usernames array is required" });
+  app.post("/api/chat/messages", async (req, reply) => {
+    const body = (req.body ?? {}) as { text?: unknown };
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text) {
+      return reply.code(400).send({ error: "Message text is required" });
+    }
+    if (text.length > 1000) {
+      return reply.code(400).send({ error: "Message too long (max 1000 chars)" });
     }
 
-    const participantIds: number[] = [];
-    for (const username of participantUsernames) {
-      if (typeof username !== "string") {
-        return reply.code(400).send({ error: "All usernames must be strings" });
-      }
-      const user = await getUserByUsername(username);
-      if (user) participantIds.push(user.id);
-    }
-
-    if (participantIds.length === 0) {
-      return reply.code(400).send({ error: "No valid participants found" });
-    }
-
-    try {
-      const conversation = await createConversation(userId, participantIds, body.name);
-      return reply.code(201).send({ conversation });
-    } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
-    }
-  });
-
-  app.get("/api/conversations/:id/messages", async (req, reply) => {
-    const userId = await getChatUserId(req);
-    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
-
-    const conversationId = (req.params as { id: string }).id;
-    if (!conversationId) return reply.code(400).send({ error: "Conversation ID required" });
-
-    try {
-      const isMember = await userIsInConversation(userId, conversationId);
-      if (!isMember) return reply.code(403).send({ error: "Forbidden" });
-
-      const messages = await getMessagesForConversation(conversationId);
-      return reply.code(200).send({ messages });
-    } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
-    }
-  });
-
-  app.post("/api/conversations/:id/messages", async (req, reply) => {
-    const userId = await getChatUserId(req);
-    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
-
-    const conversationId = (req.params as { id: string }).id;
-    if (!conversationId) return reply.code(400).send({ error: "Conversation ID required" });
-
-    const body = (req.body ?? {}) as { content?: unknown };
-    const content = typeof body.content === "string" ? body.content.trim() : "";
-    if (!content) {
-      return reply.code(400).send({ error: "Message content is required" });
-    }
-    if (content.length > 2000) {
-      return reply.code(400).send({ error: "Message too long (max 2000 chars)" });
-    }
-
+    const user = getChatUser(req);
     const now = Date.now();
-    const lastPost = chatRateLimits.get(userId) ?? 0;
+    const lastPost = chatRateLimits.get(user) ?? 0;
     if (now - lastPost < 1000) {
       return reply.code(429).send({ error: "Rate limited. Wait a second between messages." });
     }
-    chatRateLimits.set(userId, now);
+    chatRateLimits.set(user, now);
 
-    try {
-      const isMember = await userIsInConversation(userId, conversationId);
-      if (!isMember) return reply.code(403).send({ error: "Forbidden" });
+    const message: ChatMessage = {
+      id: crypto.randomUUID(),
+      user,
+      text,
+      time: new Date().toISOString(),
+    };
 
-      const message = await sendMessage(conversationId, userId, content);
+    chatMessages.push(message);
+    if (chatMessages.length > 100) chatMessages.shift();
 
-      const participants = await getConversationParticipants(conversationId);
-      const participantUserIds = new Set(participants.map((p) => p.user_id));
-
-      for (const client of chatClients) {
-        if (participantUserIds.has(client.userId)) {
-          try {
-            client.send(message);
-          } catch {}
-        }
-      }
-
-      return reply.code(200).send({ message });
-    } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : "Unknown error" });
+    for (const client of chatClients) {
+      try {
+        client(message);
+      } catch {}
     }
+
+    return reply.code(200).send(message);
   });
 
-  app.get("/api/conversations/stream", async (req, reply) => {
-    const userId = await getChatUserId(req);
-    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
-
+  app.get("/api/chat/stream", async (req, reply) => {
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, {
@@ -775,14 +645,17 @@ self.addEventListener("fetch", (event) => {
       "X-Accel-Buffering": "no",
     });
 
-    const send = (msg: Message) => {
+    const send = (msg: ChatMessage) => {
       try {
         raw.write(`data: ${JSON.stringify(msg)}\n\n`);
       } catch {}
     };
 
-    const client = { userId, send };
-    chatClients.add(client);
+    chatClients.add(send);
+
+    for (const msg of chatMessages.slice(-20)) {
+      send(msg);
+    }
 
     const keepalive = setInterval(() => {
       try {
@@ -797,7 +670,7 @@ self.addEventListener("fetch", (event) => {
       if (cleaned) return;
       cleaned = true;
       clearInterval(keepalive);
-      chatClients.delete(client);
+      chatClients.delete(send);
     };
 
     req.raw.on("close", cleanup);
@@ -830,6 +703,7 @@ self.addEventListener("fetch", (event) => {
   if (obfuscationMaps) {
     const maps = obfuscationMaps;
     const routeScript = getClientScript(maps);
+    const textScript = getTextCanvasClientScript(maps.textKey);
 
     const transformMiddleware = (_req: IncomingMessage, res: ServerResponse, next: () => void) => {
       const originalWriteHead = res.writeHead.bind(res);
@@ -941,7 +815,8 @@ self.addEventListener("fetch", (event) => {
 
           if (contentType === "html") {
             content = transformHtml(content, maps);
-            content = content.replace(/<\/head>/i, `${routeScript}</head>`);
+            content = transformTextInHtml(content, maps.textKey);
+            content = content.replace(/<\/head>/i, `${routeScript}${textScript}</head>`);
           } else if (contentType === "css") {
             content = transformCss(content, maps);
           } else if (contentType === "js") {
@@ -978,13 +853,6 @@ self.addEventListener("fetch", (event) => {
   } else {
     app.use(handler);
   }
-  setInterval(
-    () => {
-      void cleanupExpiredSessions().catch(() => {});
-    },
-    60 * 60 * 1000,
-  );
-
   app.listen({ port }, (err, addr) => {
     if (err) {
       console.error("Server failed to start:", err);
