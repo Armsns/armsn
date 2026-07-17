@@ -1,0 +1,50 @@
+---
+interface Props {
+  class?: string;
+}
+
+const { class: className = "" } = Astro.props;
+---
+
+<div
+  id="proxy-status"
+  class={`inline-flex items-center gap-1.5 text-xs font-medium ${className}`}
+  title="Proxy engine status"
+>
+  <span id="proxy-status-dot" class="h-2 w-2 rounded-full bg-text-muted animate-pulse" />
+  <span id="proxy-status-text" class="text-text-secondary">Proxy</span>
+</div>
+
+<script>
+  function updateProxyStatus() {
+    const dot = document.getElementById("proxy-status-dot");
+    const text = document.getElementById("proxy-status-text");
+    if (!dot || !text) return;
+
+    const sjReady = Boolean((window as Window & { __scramjet$config?: unknown }).__scramjet$config);
+    const swReady = Boolean(navigator.serviceWorker?.controller);
+
+    if (sjReady && swReady) {
+      dot.className = "h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_rgba(0,255,128,0.6)]";
+      text.textContent = "Ready";
+      text.className = "text-accent";
+    } else if (swReady) {
+      dot.className = "h-2 w-2 rounded-full bg-amber-400 animate-pulse";
+      text.textContent = "Loading";
+      text.className = "text-amber-400";
+    } else {
+      dot.className = "h-2 w-2 rounded-full bg-text-muted";
+      text.textContent = "Proxy";
+      text.className = "text-text-secondary";
+    }
+  }
+
+  document.addEventListener("astro:page-load", updateProxyStatus);
+  window.addEventListener("scramjet-ready", updateProxyStatus);
+
+  if (typeof navigator !== "undefined") {
+    navigator.serviceWorker?.addEventListener("controllerchange", updateProxyStatus);
+  }
+
+  setInterval(updateProxyStatus, 1000);
+</script>

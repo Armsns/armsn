@@ -1,0 +1,181 @@
+---
+import AppWindow from "lucide-astro/AppWindow";
+import Gamepad2 from "lucide-astro/Gamepad2";
+import LayoutGrid from "lucide-astro/LayoutGrid";
+import LogOut from "lucide-astro/LogOut";
+import Menu from "lucide-astro/Menu";
+import MessageSquare from "lucide-astro/MessageSquare";
+import Settings2 from "lucide-astro/Settings2";
+import X from "lucide-astro/X";
+import ProxyStatus from "@/components/ProxyStatus.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const navLinks = [
+  { href: "/games", text: "Games", Icon: Gamepad2 },
+  { href: "/apps", text: "Apps", Icon: LayoutGrid },
+  { href: "/tabs", text: "Tabs", Icon: AppWindow },
+  { href: "/chat", text: "Chat", Icon: MessageSquare },
+  { href: "/settings", text: "Settings", Icon: Settings2 },
+];
+---
+
+<Layout>
+  <nav
+    id="default-nav"
+    class="fixed top-4 left-4 right-4 z-[99999] flex items-center justify-between px-6 py-3 bg-background/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg"
+  >
+    <a
+      href="/"
+      class="inline-block text-4xl font-black leading-none text-text hover:-translate-y-0.5 tracking-tight [-webkit-text-stroke:1px_currentColor] font-display"
+      aria-label="ARM$N home"
+    >
+      ARM<span class="text-[#26de81] text-glow animate-dollar-shimmer">$</span>N
+    </a>
+
+    <div id="nav-links" class="hidden items-center gap-2">
+      {
+        navLinks.map((link) => (
+          <a
+            href={link.href}
+            class="inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:-translate-y-0.5"
+          >
+            <link.Icon class="w-5 h-5" strokeWidth={1.5} />
+            <span>{link.text}</span>
+          </a>
+        ))
+      }
+      <ProxyStatus class="ml-2" />
+      <button
+        id="logout-button"
+        type="button"
+        class="inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:text-emerald-400 hover:-translate-y-0.5 transition-all"
+      >
+        <LogOut class="w-5 h-5" strokeWidth={1.5} />
+        <span>Logout</span>
+      </button>
+    </div>
+
+    <button
+      id="menu-toggle"
+      class="p-2 text-text-secondary hover:text-text transition-colors"
+      aria-label="Toggle menu"
+    >
+      <Menu id="menu-icon" class="w-7 h-7 transition-transform duration-200" strokeWidth={1.5} />
+      <X id="close-icon" class="w-7 h-7 hidden transition-transform duration-200" strokeWidth={1.5} />
+    </button>
+  </nav>
+
+  <div
+    id="nav-menu"
+    class="fixed top-24 right-4 z-[99998] min-w-[200px] bg-background/95 backdrop-blur-sm border border-white/10 rounded-2xl p-2 shadow-2xl origin-top-right transition-all duration-200 ease-out opacity-0 scale-95 pointer-events-none"
+  >
+    {
+      navLinks.map((link, i) => (
+        <a
+          href={link.href}
+          class="menu-item flex items-center gap-3 px-4 py-3 text-text-secondary hover:text-text hover:bg-white/10 transition-all duration-150"
+          style={`transition-delay: ${i * 30}ms;`}
+        >
+          <link.Icon class="w-5 h-5" strokeWidth={1.5} />
+          <span class="text-base">{link.text}</span>
+        </a>
+      ))
+    }
+    <button
+      id="logout-button-mobile"
+      type="button"
+      class="menu-item flex w-full items-center gap-3 px-4 py-3 text-text-secondary hover:text-emerald-400 hover:bg-white/10 transition-all duration-150"
+      style={`transition-delay: ${navLinks.length * 30}ms;`}
+    >
+      <LogOut class="w-5 h-5" strokeWidth={1.5} />
+      <span class="text-base">Logout</span>
+    </button>
+  </div>
+
+  <main class="flex flex-col min-h-screen pt-24">
+    <slot />
+  </main>
+</Layout>
+
+<style>
+  #nav-menu.open {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+
+  #nav-menu .menu-item {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+
+  #nav-menu.open .menu-item {
+    opacity: 1;
+    transform: translateX(0);
+  }
+</style>
+
+<script>
+  function getId(name: string): string {
+    const codeMap = (window as Window & { _2?: Record<string, string> })._2;
+    return codeMap?.[name] ?? name;
+  }
+
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore network errors
+    }
+    window.location.href = "/login";
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    const navStyle = localStorage.getItem("nav-style") || "inline";
+    const toggle = document.getElementById(getId("menu-toggle"));
+    const menu = document.getElementById(getId("nav-menu"));
+    const links = document.getElementById(getId("nav-links"));
+    const openIcon = document.getElementById(getId("menu-icon"));
+    const closeIcon = document.getElementById(getId("close-icon"));
+    const logoutBtn = document.getElementById(getId("logout-button"));
+    const logoutMobileBtn = document.getElementById(getId("logout-button-mobile"));
+
+    logoutBtn?.addEventListener("click", logout);
+    logoutMobileBtn?.addEventListener("click", logout);
+
+    if (!toggle || !menu || !openIcon || !closeIcon) return;
+
+    if (navStyle === "inline") {
+      links?.classList.remove("hidden");
+      toggle.classList.add("hidden");
+      menu.classList.remove("open");
+      menu.classList.add("hidden");
+      return;
+    }
+
+    links?.classList.add("hidden");
+    menu.classList.remove("hidden");
+
+    const open = () => {
+      menu.classList.add("open");
+      openIcon.classList.add("hidden");
+      closeIcon.classList.remove("hidden");
+    };
+
+    const close = () => {
+      menu.classList.remove("open");
+      openIcon.classList.remove("hidden");
+      closeIcon.classList.add("hidden");
+    };
+
+    toggle.addEventListener("click", () => {
+      menu.classList.contains("open") ? close() : open();
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!toggle.contains(e.target as Node) && !menu.contains(e.target as Node)) {
+        close();
+      }
+    });
+  });
+</script>

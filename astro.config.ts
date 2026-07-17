@@ -61,6 +61,18 @@ export default defineConfig({
         })(),
       ),
     },
+    server: {
+      // In dev mode, proxy /api requests to the Fastify server (npm run
+      // start) so auth and the admin panel work during `astro dev`.
+      // The /f wisp websocket upgrade is handled by the vite-wisp-server
+      // plugin above, so it is NOT proxied here.
+      proxy: {
+        "/api": {
+          target: process.env.API_PROXY_URL || "http://localhost:8080",
+          changeOrigin: true,
+        },
+      },
+    },
     resolve: {
       alias: {
         "@": path.resolve("./src"),

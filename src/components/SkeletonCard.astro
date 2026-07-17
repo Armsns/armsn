@@ -1,0 +1,18 @@
+---
+interface Props {
+  count?: number;
+}
+
+const { count = 6 } = Astro.props;
+---
+
+{
+  Array.from({ length: count }).map((_, i) => (
+    <div class="relative overflow-hidden rounded bg-white/[0.03] border border-white/10 animate-pulse" style={`animation-delay: ${i * 100}ms;`}>
+      <div class="aspect-square bg-white/5" />
+      <div class="absolute bottom-0 left-0 right-0 p-3">
+        <div class="h-3 w-2/3 rounded bg-white/10" />
+      </div>
+    </div>
+  ))
+}

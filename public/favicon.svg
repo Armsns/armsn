@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#0f1714"/>
+      <stop offset="60%" stop-color="#0a0d0a"/>
+      <stop offset="100%" stop-color="#050807"/>
+    </radialGradient>
+    <linearGradient id="dollar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00ff80"/>
+      <stop offset="100%" stop-color="#00cc6a"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#1f2b22" stroke-width="1"/>
+  <g filter="url(#glow)">
+    <text x="32" y="45"
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+          font-weight="900"
+          font-size="42"
+          fill="url(#dollar)">$</text>
+  </g>
+</svg>

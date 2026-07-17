@@ -1,0 +1,617 @@
+---
+import ExternalLink from "lucide-astro/ExternalLink";
+import Eye from "lucide-astro/Eye";
+import EyeOff from "lucide-astro/EyeOff";
+import Globe from "lucide-astro/Globe";
+import KeyRound from "lucide-astro/KeyRound";
+import LayoutGrid from "lucide-astro/LayoutGrid";
+import Search from "lucide-astro/Search";
+import Siren from "lucide-astro/Siren";
+import SwatchBook from "lucide-astro/SwatchBook";
+import UserPlus from "lucide-astro/UserPlus";
+import Users from "lucide-astro/Users";
+
+import ArrowButton from "@/components/ArrowButton.astro";
+import Dropdown from "@/components/Dropdown.astro";
+import SettingsCard from "@/components/SettingsCard.astro";
+import Layout from "@/layouts/Main.astro";
+---
+
+<Layout>
+  <div class="flex flex-col items-center pt-24 pb-12 px-4">
+    <div class="text-center mb-10 animate-fade-in">
+      <h1 class="text-3xl font-normal tracking-tight text-text uppercase font-display">Settings</h1>
+      <p class="mt-1 text-text-secondary text-sm">Configure your experience</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 w-full max-w-5xl stagger overflow-visible relative z-[1000]">
+      <SettingsCard
+        description="Open in an about:blank tab"
+        title="About:Blank"
+        Icon={ExternalLink}
+      >
+        <div class="flex items-center justify-between gap-3">
+          <label class="flex items-center gap-3 text-sm text-text-secondary">
+            <input id="ab-toggle" type="checkbox" class="sr-only" />
+            <span id="ab-switch" class="relative inline-flex h-6 w-11 items-center rounded-full border shadow-inner transition-colors">
+              <span id="ab-knob" class="inline-block h-5 w-5 rounded-full shadow-sm transition-transform"></span>
+            </span>
+            <span id="ab-status" class="text-text-secondary">Disabled</span>
+          </label>
+        </div>
+        <div class="mt-3">
+          <ArrowButton id="AB" title="Open Popup" />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard
+        description="Disguise browser tab appearance"
+        title="Tab Cloaker"
+        Icon={EyeOff}
+      >
+        <Dropdown
+          id="cloaker"
+          text="Select Preset"
+          menu={[
+            { value: "Britannica", text: "Britannica" },
+            { value: "Canvas", text: "Canvas" },
+            { value: "Classroom", text: "Classroom" },
+            { value: "Clever", text: "Clever" },
+            { value: "DeltaMath", text: "DeltaMath" },
+            { value: "Desmos", text: "Desmos" },
+            { value: "Drive", text: "Drive" },
+            { value: "Edpuzzle", text: "Edpuzzle" },
+            { value: "Gmail", text: "Gmail" },
+            { value: "Google", text: "Google" },
+            { value: "Google_Docs", text: "Google Docs" },
+            { value: "Google_Meet", text: "Google Meet" },
+            { value: "Google_Slides", text: "Google Slides" },
+            { value: "IF_Campus", text: "Infinite Campus" },
+            { value: "IXL", text: "IXL" },
+            { value: "Khan", text: "Khan Academy" },
+            { value: "Schoology", text: "Schoology" },
+            { value: "Wikipedia", text: "Wikipedia" },
+          ]}
+        />
+        <input
+          id="custom-title"
+          placeholder="Custom title"
+          class="w-full h-9 px-3 mt-2 bg-white/5 border border-white/10 rounded text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-white/25 transition-all"
+        />
+        <input
+          id="custom-icon"
+          placeholder="Custom icon URL"
+          class="w-full h-9 px-3 mt-2 bg-white/5 border border-white/10 rounded text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-white/25 transition-all"
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        description="Quick escape to another site"
+        title="Panic Key"
+        Icon={Siren}
+      >
+        <input
+          id="key"
+          placeholder="Key sequence (e.g. ``)"
+          class="w-full h-9 px-3 bg-white/5 border border-white/10 rounded text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-white/25 transition-all"
+        />
+        <input
+          id="link"
+          placeholder="Redirect URL"
+          class="w-full h-9 px-3 mt-2 bg-white/5 border border-white/10 rounded text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-white/25 transition-all"
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        description="Default search provider"
+        title="Search Engine"
+        Icon={Search}
+      >
+        <Dropdown
+          id="engine"
+          text="Select Engine"
+          menu={[
+            { value: "Google", text: "Google" },
+            { value: "DuckDuckGo", text: "DuckDuckGo" },
+            { value: "Bing", text: "Bing" },
+            { value: "Ecosia", text: "Ecosia" },
+            { value: "Startpage", text: "Startpage" },
+          ]}
+        />
+        <input
+          id="custom-engine"
+          placeholder="Custom search URL"
+          class="w-full h-9 px-3 mt-2 bg-white/5 border border-white/10 rounded text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-white/25 transition-all"
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        description="Proxy backend engine"
+        title="Proxy Engine"
+        Icon={Globe}
+      >
+        <div class="flex flex-col gap-2 text-sm text-text-secondary">
+          <div class="flex items-center justify-between">
+            <span>Engine</span>
+            <span id="proxy-engine-status" class="text-text">Scramjet</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span>Service Worker</span>
+            <span id="proxy-sw-status" class="text-text-secondary">Checking...</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span>Transport</span>
+            <span id="proxy-transport-status" class="text-text-secondary">Checking...</span>
+          </div>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard
+        description="Top navigation layout"
+        title="Navigation"
+        Icon={LayoutGrid}
+      >
+        <Dropdown
+          id="nav-style"
+          text="Select Layout"
+          menu={[
+            { value: "menu", text: "Menu" },
+            { value: "inline", text: "Inline" },
+          ]}
+        />
+      </SettingsCard>
+
+      <SettingsCard
+        description="Visual appearance"
+        title="Theme"
+        Icon={SwatchBook}
+      >
+        <Dropdown
+          id="theme"
+          text="Select Theme"
+          menu={[
+            { value: "Default", text: "Vault (Default)" },
+            { value: "Black", text: "Void" },
+            { value: "Midnight", text: "Midnight" },
+            { value: "Ocean", text: "Cipher" },
+            { value: "Forest", text: "Hedge" },
+            { value: "Citrine", text: "Bullion" },
+            { value: "Purple", text: "Quantum" },
+            { value: "White", text: "Light" },
+          ]}
+        />
+      </SettingsCard>
+
+      <div id="admin-panel" class="hidden">
+        <SettingsCard description="Create and manage user accounts" title="User Management" Icon={Users}>
+          <form id="add-user-form" class="space-y-2.5">
+            <input
+              id="new-username"
+              placeholder="Username"
+              required
+              class="w-full h-10 px-3 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+            />
+            <div class="relative">
+              <input
+                id="new-password"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Password"
+                required
+                minlength="6"
+                class="w-full h-10 px-3 pr-10 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+              />
+              <button
+                type="button"
+                id="toggle-password-visibility"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-text-placeholder hover:text-text transition-colors"
+                aria-label="Show password"
+              >
+                <Eye id="pw-eye" class="w-4 h-4" stroke-width="1.5" />
+                <EyeOff id="pw-eyeoff" class="w-4 h-4 hidden" stroke-width="1.5" />
+              </button>
+            </div>
+            <p class="text-xs text-text-secondary">Password must be at least 6 characters.</p>
+            <button
+              id="add-user-btn"
+              type="submit"
+              class="w-full h-10 mt-1 rounded-lg bg-accent/15 text-accent font-semibold hover:bg-accent/25 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2"
+            >
+              <UserPlus class="w-4 h-4" stroke-width="1.5" />
+              <span>Add User</span>
+            </button>
+          </form>
+
+          <div class="mt-5">
+            <div class="flex items-center justify-between mb-2.5">
+              <p class="text-xs text-text-secondary uppercase font-semibold tracking-wider">Users</p>
+              <span id="user-count" class="text-xs text-text-secondary/70 font-mono">0</span>
+            </div>
+            <div id="user-search-wrapper" class="relative mb-2.5">
+              <input
+                id="user-search"
+                type="text"
+                placeholder="Filter users..."
+                autocomplete="off"
+                class="w-full h-9 pl-8 pr-3 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+              />
+              <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-placeholder pointer-events-none" stroke-width="1.5" />
+            </div>
+            <ul id="user-list" class="space-y-1.5 text-sm text-text">
+              <li class="text-text-secondary text-xs italic py-2">Loading...</li>
+            </ul>
+          </div>
+        </SettingsCard>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Password Reset Modal -->
+  <div id="reset-pw-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center px-4">
+    <div id="reset-pw-overlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-sm rounded-2xl border border-white/10 bg-background/95 backdrop-blur-md shadow-2xl p-6 space-y-4">
+      <div class="flex items-center gap-2.5">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent">
+          <KeyRound class="w-4 h-4" stroke-width="1.5" />
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-text uppercase tracking-wide font-display">Reset Password</h3>
+          <p class="text-xs text-text-secondary mt-0.5">for <span id="reset-pw-username" class="text-text font-medium"></span></p>
+        </div>
+      </div>
+      <form id="reset-pw-form" class="space-y-3">
+        <div class="relative">
+          <input
+            id="reset-pw-input"
+            type="password"
+            autocomplete="new-password"
+            placeholder="New password"
+            required
+            minlength="6"
+            class="w-full h-10 px-3 pr-10 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+          />
+          <button
+            type="button"
+            id="reset-pw-toggle"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-text-placeholder hover:text-text transition-colors"
+            aria-label="Show password"
+          >
+            <Eye id="reset-pw-eye" class="w-4 h-4" stroke-width="1.5" />
+            <EyeOff id="reset-pw-eyeoff" class="w-4 h-4 hidden" stroke-width="1.5" />
+          </button>
+        </div>
+        <p class="text-xs text-text-secondary">Password must be at least 6 characters.</p>
+        <div class="flex gap-2 pt-1">
+          <button
+            type="button"
+            id="reset-pw-cancel"
+            class="flex-1 h-10 rounded-lg bg-white/5 border border-white/10 text-text-secondary font-medium hover:bg-white/10 transition-all text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            id="reset-pw-submit"
+            class="flex-1 h-10 rounded-lg bg-accent/15 text-accent font-semibold hover:bg-accent/25 active:scale-[0.98] transition-all text-sm"
+          >
+            Reset
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script src="@/lib/settings.ts"></script>
+
+  <script>
+    import { showToast } from "@/lib/toast";
+
+    let adminUsername = "";
+    let allUsers: string[] = [];
+    let resetTargetUsername = "";
+
+    function openResetPwModal(username: string) {
+      resetTargetUsername = username;
+      const label = document.getElementById("reset-pw-username");
+      if (label) label.textContent = username;
+      const input = document.getElementById("reset-pw-input") as HTMLInputElement | null;
+      if (input) {
+        input.value = "";
+        input.type = "password";
+      }
+      document.getElementById("reset-pw-eye")?.classList.remove("hidden");
+      document.getElementById("reset-pw-eyeoff")?.classList.add("hidden");
+      document.getElementById("reset-pw-modal")?.classList.remove("hidden");
+      setTimeout(() => input?.focus(), 50);
+    }
+
+    function closeResetPwModal() {
+      document.getElementById("reset-pw-modal")?.classList.add("hidden");
+      resetTargetUsername = "";
+      const input = document.getElementById("reset-pw-input") as HTMLInputElement | null;
+      if (input) input.value = "";
+    }
+
+    function escapeHtml(text: string): string {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function renderUserList(filter: string) {
+      const list = document.getElementById("user-list");
+      if (!list) return;
+
+      const query = filter.trim().toLowerCase();
+
+      const filteredUsers = query
+        ? allUsers.filter((u) => u.toLowerCase().includes(query))
+        : allUsers;
+      const showAdmin = !query || adminUsername.toLowerCase().includes(query);
+
+      if (filteredUsers.length === 0 && !showAdmin) {
+        list.innerHTML = '<li class="text-text-secondary text-xs italic py-2 text-center">No matching users</li>';
+        return;
+      }
+
+      const items: string[] = [];
+
+      // Show admin user first with badge (if it matches the filter)
+      if (adminUsername && showAdmin) {
+        items.push(
+          `<li class="flex items-center justify-between bg-accent/[0.06] border border-accent/15 p-2.5 rounded-lg">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-accent shrink-0" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="truncate text-text font-medium">${escapeHtml(adminUsername)}</span>
+            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/15 px-2 py-0.5 rounded shrink-0">Admin</span>
+          </li>`,
+        );
+      }
+
+      // Show dynamically created users that match the filter
+      for (const username of filteredUsers) {
+        items.push(
+          `<li class="flex items-center justify-between bg-white/[0.03] border border-white/5 p-2.5 rounded-lg hover:border-white/10 transition-colors">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-secondary shrink-0" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="truncate">${escapeHtml(username)}</span>
+            </div>
+            <div class="flex items-center gap-0.5 shrink-0">
+              <button data-username="${escapeHtml(username)}" class="reset-pw-user text-text-secondary hover:text-accent transition-colors p-1 rounded" aria-label="Reset password for ${escapeHtml(username)}" title="Reset password">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+              </button>
+              <button data-username="${escapeHtml(username)}" class="delete-user text-text-secondary hover:text-rose-400 transition-colors p-1 rounded" aria-label="Delete ${escapeHtml(username)}" title="Delete user">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+          </li>`,
+        );
+      }
+
+      list.innerHTML = items.join("");
+
+      list.querySelectorAll<HTMLButtonElement>(".reset-pw-user").forEach((button) => {
+        button.addEventListener("click", () => {
+          const username = button.getAttribute("data-username");
+          if (!username) return;
+          openResetPwModal(username);
+        });
+      });
+
+      list.querySelectorAll<HTMLButtonElement>(".delete-user").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const username = button.getAttribute("data-username");
+          if (!username) return;
+          if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+
+          button.disabled = true;
+          button.style.opacity = "0.4";
+
+          try {
+            const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: "DELETE" });
+            if (res.ok) {
+              showToast(`User "${username}" deleted`, "success");
+              await loadUsers();
+            } else {
+              const errData = await res.json().catch(() => ({ error: "Delete failed" }));
+              showToast(errData.error || "Failed to delete user", "error");
+              button.disabled = false;
+              button.style.opacity = "1";
+            }
+          } catch {
+            showToast("Network error. Try again.", "error");
+            button.disabled = false;
+            button.style.opacity = "1";
+          }
+        });
+      });
+    }
+
+    async function loadUsers() {
+      const list = document.getElementById("user-list");
+      const countEl = document.getElementById("user-count");
+      const searchInput = document.getElementById("user-search") as HTMLInputElement | null;
+      if (!list) return;
+
+      list.innerHTML = '<li class="text-text-secondary text-xs italic py-2">Loading...</li>';
+
+      try {
+        const res = await fetch("/api/admin/users");
+        if (!res.ok) {
+          list.innerHTML = '<li class="text-text-secondary text-xs">Failed to load users</li>';
+          return;
+        }
+        const data = await res.json();
+        allUsers = data.users || [];
+
+        if (countEl) countEl.textContent = String(allUsers.length + (adminUsername ? 1 : 0));
+
+        if (allUsers.length === 0 && !adminUsername) {
+          list.innerHTML = '<li class="text-text-secondary text-xs italic">No users yet</li>';
+          return;
+        }
+
+        renderUserList(searchInput?.value ?? "");
+      } catch {
+        list.innerHTML = '<li class="text-text-secondary text-xs">Failed to load users</li>';
+      }
+    }
+
+    async function initAdminPanel() {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.isAdmin) return;
+
+        adminUsername = data.user;
+
+        const panel = document.getElementById("admin-panel");
+        if (panel) panel.classList.remove("hidden");
+
+        // User search filter
+        const searchInput = document.getElementById("user-search") as HTMLInputElement | null;
+        searchInput?.addEventListener("input", () => {
+          renderUserList(searchInput.value);
+        });
+
+        // Password visibility toggle
+        const toggleBtn = document.getElementById("toggle-password-visibility");
+        const pwInput = document.getElementById("new-password") as HTMLInputElement | null;
+        const eyeIcon = document.getElementById("pw-eye");
+        const eyeoffIcon = document.getElementById("pw-eyeoff");
+        toggleBtn?.addEventListener("click", () => {
+          if (!pwInput) return;
+          const isPassword = pwInput.type === "password";
+          pwInput.type = isPassword ? "text" : "password";
+          eyeIcon?.classList.toggle("hidden", isPassword);
+          eyeoffIcon?.classList.toggle("hidden", !isPassword);
+          toggleBtn.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+        });
+
+        // Add user form
+        const addUserForm = document.getElementById("add-user-form");
+        const addUserBtn = document.getElementById("add-user-btn");
+
+        addUserForm?.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const usernameInput = document.getElementById("new-username") as HTMLInputElement | null;
+          const passwordInput = document.getElementById("new-password") as HTMLInputElement | null;
+          if (!usernameInput || !passwordInput) return;
+
+          const username = usernameInput.value.trim();
+          const password = passwordInput.value;
+          if (!username || !password) return;
+
+          if (addUserBtn) {
+            addUserBtn.setAttribute("disabled", "true");
+            addUserBtn.style.opacity = "0.6";
+            const span = addUserBtn.querySelector("span");
+            if (span) span.textContent = "Adding...";
+          }
+
+          try {
+            const res = await fetch("/api/admin/users", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, password }),
+            });
+
+            if (res.ok) {
+              usernameInput.value = "";
+              passwordInput.value = "";
+              if (searchInput) searchInput.value = "";
+              showToast(`User "${username}" created`, "success");
+              await loadUsers();
+            } else {
+              const errData = await res.json().catch(() => ({ error: "Failed to add user" }));
+              showToast(errData.error || "Failed to add user", "error");
+            }
+          } catch {
+            showToast("Network error. Try again.", "error");
+          } finally {
+            if (addUserBtn) {
+              addUserBtn.removeAttribute("disabled");
+              addUserBtn.style.opacity = "1";
+              const span = addUserBtn.querySelector("span");
+              if (span) span.textContent = "Add User";
+            }
+          }
+        });
+
+        // --- Password Reset Modal ---
+        const resetModal = document.getElementById("reset-pw-modal");
+        const resetOverlay = document.getElementById("reset-pw-overlay");
+        const resetForm = document.getElementById("reset-pw-form") as HTMLFormElement | null;
+        const resetInput = document.getElementById("reset-pw-input") as HTMLInputElement | null;
+        const resetCancelBtn = document.getElementById("reset-pw-cancel");
+        const resetSubmitBtn = document.getElementById("reset-pw-submit");
+        const resetToggleBtn = document.getElementById("reset-pw-toggle");
+        const resetEyeIcon = document.getElementById("reset-pw-eye");
+        const resetEyeoffIcon = document.getElementById("reset-pw-eyeoff");
+
+        resetOverlay?.addEventListener("click", closeResetPwModal);
+        resetCancelBtn?.addEventListener("click", closeResetPwModal);
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && resetModal && !resetModal.classList.contains("hidden")) {
+            closeResetPwModal();
+          }
+        });
+
+        resetToggleBtn?.addEventListener("click", () => {
+          if (!resetInput) return;
+          const isPassword = resetInput.type === "password";
+          resetInput.type = isPassword ? "text" : "password";
+          resetEyeIcon?.classList.toggle("hidden", isPassword);
+          resetEyeoffIcon?.classList.toggle("hidden", !isPassword);
+          resetToggleBtn.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+        });
+
+        resetForm?.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (!resetInput || !resetTargetUsername) return;
+          const password = resetInput.value;
+          if (!password || password.length < 6) return;
+
+          if (resetSubmitBtn) {
+            resetSubmitBtn.setAttribute("disabled", "true");
+            resetSubmitBtn.style.opacity = "0.6";
+            resetSubmitBtn.textContent = "Resetting...";
+          }
+
+          try {
+            const res = await fetch(`/api/admin/users/${encodeURIComponent(resetTargetUsername)}/password`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password }),
+            });
+
+            if (res.ok) {
+              showToast(`Password reset for "${resetTargetUsername}"`, "success");
+              closeResetPwModal();
+            } else {
+              const errData = await res.json().catch(() => ({ error: "Failed to reset password" }));
+              showToast(errData.error || "Failed to reset password", "error");
+            }
+          } catch {
+            showToast("Network error. Try again.", "error");
+          } finally {
+            if (resetSubmitBtn) {
+              resetSubmitBtn.removeAttribute("disabled");
+              resetSubmitBtn.style.opacity = "1";
+              resetSubmitBtn.textContent = "Reset";
+            }
+          }
+        });
+
+        await loadUsers();
+      } catch {
+        // ignore
+      }
+    }
+
+    initAdminPanel();
+  </script>
+</Layout>
