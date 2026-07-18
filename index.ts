@@ -40,6 +40,7 @@ import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { build } from "astro";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import INConfig from "./config.js";
+import { supabase } from "./src/lib/supabase";
 import { ASSET_FOLDERS, generateMaps, getClientScript, type ObfuscationMaps, ROUTES, transformCss, transformHtml, transformJs } from "./src/lib/obfuscate";
 import { getSyncStatus, syncGames } from "./src/lib/sync";
 import { getTextCanvasClientScript, transformTextInHtml } from "./src/lib/text-canvas";
@@ -113,21 +114,24 @@ async function Start() {
   const SESSION_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
   const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-  const dataDir = path.join(process.cwd(), "data");
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  const usersFile = path.join(dataDir, "users.json");
-
-  let dynamicUsers: Record<string, string> = {};
-  if (fs.existsSync(usersFile)) {
-    try {
-      dynamicUsers = JSON.parse(fs.readFileSync(usersFile, "utf8"));
-    } catch {
-      console.error("[ARM$N] Failed to parse data/users.json");
+  async function hydrateSessions(): Promise<void> {
+    const { data, error } = await supabase.from("sessions").select("id, username, expires_at");
+    if (error) {
+      console.error("[ARM$N] Failed to hydrate sessions:", error.message);
+      return;
+    }
+    const now = Date.now();
+    for (const row of data ?? []) {
+      if (row.expires_at < now) continue;
+      sessions.set(row.id, { id: row.id, username: row.username, expiresAt: row.expires_at });
     }
   }
 
-  function saveDynamicUsers(): void {
-    fs.writeFileSync(usersFile, JSON.stringify(dynamicUsers, null, 2));
+  await hydrateSessions();
+
+  async function getDynamicUser(username: string): Promise<string | null> {
+    const { data } = await supabase.from("users").select("password_hash").eq("username", username).maybeSingle();
+    return data?.password_hash ?? null;
   }
 
   const adminUser = process.env.ADMIN_USER || process.env.AUTH_USER || "";
@@ -139,19 +143,35 @@ async function Start() {
     return crypto.createHmac("sha256", SESSION_SECRET).update(sessionId).digest("base64url");
   }
 
-  function createSession(username: string): string {
+  async function createSession(username: string): Promise<string> {
     const sessionId = crypto.randomUUID();
-    sessions.set(sessionId, {
-      id: sessionId,
-      username,
-      expiresAt: Date.now() + SESSION_MAX_AGE_MS,
-    });
+    const expiresAt = Date.now() + SESSION_MAX_AGE_MS;
+    sessions.set(sessionId, { id: sessionId, username, expiresAt });
+    await supabase.from("sessions").insert({ id: sessionId, username, expires_at: expiresAt });
     return `${sessionId}.${signSessionId(sessionId)}`;
   }
 
-  function destroySession(sessionId: string): void {
+  async function destroySession(sessionId: string): Promise<void> {
     sessions.delete(sessionId);
+    await supabase.from("sessions").delete().eq("id", sessionId);
   }
+
+  async function cleanupExpiredSessions(): Promise<void> {
+    const now = Date.now();
+    for (const [id, session] of sessions) {
+      if (session.expiresAt < now) {
+        sessions.delete(id);
+      }
+    }
+    const { error } = await supabase.from("sessions").delete().lt("expires_at", now);
+    if (error) {
+      console.error("[ARM$N] Failed to cleanup expired sessions:", error.message);
+    }
+  }
+
+  setInterval(() => {
+    void cleanupExpiredSessions();
+  }, 60 * 60 * 1000);
 
   function parseSessionCookie(cookieHeader: string | undefined): Session | null {
     if (!cookieHeader) return null;
@@ -216,13 +236,13 @@ async function Start() {
     const password = typeof body.password === "string" ? body.password : "";
 
     const users = INConfig.auth?.users || {};
-    const storedPass = users[username] ?? dynamicUsers[username];
+    const envUserPass = users[username];
+    const storedPass = envUserPass ?? (await getDynamicUser(username));
 
     if (!storedPass) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    const envUserPass = users[username];
     if (envUserPass) {
       const inputBuf = Buffer.from(password);
       const storedBuf = Buffer.from(envUserPass);
@@ -233,7 +253,7 @@ async function Start() {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    const sessionValue = createSession(username);
+    const sessionValue = await createSession(username);
     setSessionCookie(reply, sessionValue, 7 * 24 * 60 * 60);
     return reply.code(200).send({ success: true });
   });
@@ -241,7 +261,7 @@ async function Start() {
   app.post("/api/auth/logout", async (req, reply) => {
     const session = parseSessionCookie(req.headers.cookie);
     if (session) {
-      destroySession(session.id);
+      await destroySession(session.id);
     }
     clearSessionCookie(reply);
     return reply.code(200).send({ success: true });
@@ -264,7 +284,12 @@ async function Start() {
     if (!isAdminSession(req.headers.cookie)) {
       return reply.code(403).send({ error: "Forbidden" });
     }
-    return reply.code(200).send({ users: Object.keys(dynamicUsers) });
+    const { data, error } = await supabase.from("users").select("username");
+    if (error) {
+      console.error("[ARM$N] Failed to list users:", error.message);
+      return reply.code(500).send({ error: "Failed to list users" });
+    }
+    return reply.code(200).send({ users: (data ?? []).map((u) => u.username) });
   });
 
   app.post("/api/admin/users", async (req, reply) => {
@@ -283,11 +308,18 @@ async function Start() {
     if (username === adminUser) {
       return reply.code(409).send({ error: "Cannot create a user with the admin username" });
     }
-    if (dynamicUsers[username]) {
+
+    const existing = await getDynamicUser(username);
+    if (existing) {
       return reply.code(409).send({ error: "User already exists" });
     }
-    dynamicUsers[username] = await hashPassword(password);
-    saveDynamicUsers();
+
+    const password_hash = await hashPassword(password);
+    const { error } = await supabase.from("users").insert({ username, password_hash });
+    if (error) {
+      console.error("[ARM$N] Failed to create user:", error.message);
+      return reply.code(500).send({ error: "Failed to create user" });
+    }
     return reply.code(200).send({ success: true, username });
   });
 
@@ -299,9 +331,10 @@ async function Start() {
     if (username === adminUser) {
       return reply.code(400).send({ error: "Cannot delete the admin account" });
     }
-    if (dynamicUsers[username]) {
-      delete dynamicUsers[username];
-      saveDynamicUsers();
+    const { error } = await supabase.from("users").delete().eq("username", username);
+    if (error) {
+      console.error("[ARM$N] Failed to delete user:", error.message);
+      return reply.code(500).send({ error: "Failed to delete user" });
     }
     return reply.code(200).send({ success: true });
   });
@@ -322,11 +355,16 @@ async function Start() {
     if (username === adminUser) {
       return reply.code(400).send({ error: "Cannot reset the admin account password from here" });
     }
-    if (!dynamicUsers[username]) {
+    const existing = await getDynamicUser(username);
+    if (!existing) {
       return reply.code(404).send({ error: "User not found" });
     }
-    dynamicUsers[username] = await hashPassword(password);
-    saveDynamicUsers();
+    const password_hash = await hashPassword(password);
+    const { error } = await supabase.from("users").update({ password_hash }).eq("username", username);
+    if (error) {
+      console.error("[ARM$N] Failed to update password:", error.message);
+      return reply.code(500).send({ error: "Failed to update password" });
+    }
     return reply.code(200).send({ success: true, username });
   });
 
@@ -582,6 +620,21 @@ self.addEventListener("fetch", (event) => {
   const chatClients = new Set<(msg: ChatMessage) => void>();
   const chatRateLimits = new Map<string, number>();
 
+  async function hydrateChatMessages(): Promise<void> {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("id, user, text, time")
+      .order("time", { ascending: true })
+      .limit(100);
+    if (error) {
+      console.error("[ARM$N] Failed to hydrate chat messages:", error.message);
+      return;
+    }
+    chatMessages.push(...(data ?? []));
+  }
+
+  await hydrateChatMessages();
+
   setInterval(() => {
     const cutoff = Date.now() - 60_000;
     for (const [user, time] of chatRateLimits) {
@@ -631,6 +684,15 @@ self.addEventListener("fetch", (event) => {
         client(message);
       } catch {}
     }
+
+    supabase
+      .from("chat_messages")
+      .insert(message)
+      .then(({ error }) => {
+        if (error) {
+          console.error("[ARM$N] Failed to persist chat message:", error.message);
+        }
+      });
 
     return reply.code(200).send(message);
   });
@@ -691,6 +753,8 @@ self.addEventListener("fetch", (event) => {
     done();
   });
 
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore - generated by astro build
   const { handler } = (await import("./dist/server/entry.mjs")) as {
     handler: (req: unknown, res: unknown, next?: () => void) => void;
   };

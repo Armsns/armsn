@@ -1,7 +1,13 @@
+$ astro dev
+12:28:35 [@astrojs/node] Enabling sessions with filesystem storage
+12:28:35 [types] Generated 1ms
+12:28:35 [content] Syncing content
+12:28:35 [content] Synced content
 
-> armn@7.0.0 start
-> tsx index.ts
+ astro  v5.18.2 ready in 490 ms
 
-Server listening on http://[::1]:8080
-[armn-sync] SYNC_TOKEN not set — POST /api/sync-games is unauthenticated. Set SYNC_TOKEN before exposing publicly.
-[armn-sync] 2026-07-16T06:17:53.172Z not-modified upstream=main etag=W/"6c3b16526ca873cc78dc59e65ac42db61b9d5f636c7bc1017b81dfc443c0bc68" in 94ms
+┃ Local    http://localhost:4321/
+┃ Network  use --host to expose
+
+12:28:35 watching for file changes...
+error: script "dev" exited with code 143

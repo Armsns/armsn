@@ -1,5 +1,9 @@
 /// <reference path="../.astro/types.d.ts" />
 /// <reference types="astro/client" />
+
+declare module "./dist/server/entry.mjs" {
+  export function handler(req: unknown, res: unknown, next?: () => void): void;
+}
 declare global {
   const __COMMIT_DATE__: string;
   function $scramjetLoadController(): { ScramjetController: new (config: unknown) => { init(): void } };
