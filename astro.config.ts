@@ -4,24 +4,12 @@ import node from "@astrojs/node";
 import react from "@astrojs/react";
 import tailwind from "@astrojs/tailwind";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
-import compress from "@playform/compress";
 import { defineConfig } from "astro/config";
-import INConfig from "./config";
 
+// NOTE: `@playform/compress` was removed because it interferes with the
+// `@astrojs/node` v9 middleware-mode build and silently drops the emitted
+// `manifest_*.mjs` chunk. Compress at the proxy/CDN layer instead.
 const integrations = [react(), tailwind({ applyBaseStyles: false })];
-
-if (INConfig.server?.compress !== false) {
-  integrations.push(
-    compress({
-      CSS: false,
-      HTML: true,
-      Image: false,
-      JavaScript: true,
-      SVG: true,
-      Logger: 0,
-    }),
-  );
-}
 
 export default defineConfig({
   output: "server",
