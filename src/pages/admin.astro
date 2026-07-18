@@ -1,0 +1,432 @@
+---
+import Eye from "lucide-astro/Eye";
+import EyeOff from "lucide-astro/EyeOff";
+import KeyRound from "lucide-astro/KeyRound";
+import Search from "lucide-astro/Search";
+import Shield from "lucide-astro/Shield";
+import UserPlus from "lucide-astro/UserPlus";
+import Users from "lucide-astro/Users";
+import Layout from "@/layouts/Main.astro";
+---
+
+<Layout>
+  <div class="flex flex-col items-center pt-24 pb-12 px-4 min-h-screen">
+    <div class="text-center mb-10 animate-fade-in">
+      <h1 class="text-3xl font-normal tracking-tight text-text uppercase font-display">Admin</h1>
+      <p class="mt-1 text-text-secondary text-sm">Manage users and system access</p>
+    </div>
+
+    <div id="admin-access-denied" class="hidden rounded-2xl border border-rose-500/30 bg-rose-500/5 p-8 text-center max-w-md">
+      <Shield class="w-12 h-12 text-rose-400 mx-auto mb-4" stroke-width={1.5} />
+      <h2 class="text-xl font-semibold text-text mb-2">Access Denied</h2>
+      <p class="text-text-secondary text-sm">You must be logged in as the admin user to view this page.</p>
+    </div>
+
+    <div id="admin-panel" class="hidden w-full max-w-2xl animate-fade-in">
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-accent/10 text-accent">
+            <Users class="w-5 h-5" stroke-width={1.5} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-text">User Management</h2>
+            <p class="text-xs text-text-secondary">Create, reset, and remove user accounts</p>
+          </div>
+        </div>
+
+        <form id="add-user-form" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          <input
+            id="new-username"
+            name="new-username"
+            type="text"
+            placeholder="Username"
+            required
+            class="h-10 px-3 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+          />
+          <div class="relative">
+            <input
+              id="new-password"
+              name="new-password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="Password"
+              required
+              minlength="6"
+              class="w-full h-10 px-3 pr-10 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+            />
+            <button
+              type="button"
+              id="toggle-password-visibility"
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-text-placeholder hover:text-text transition-colors"
+              aria-label="Show password"
+            >
+              <Eye id="pw-eye" class="w-4 h-4" stroke-width={1.5} />
+              <EyeOff id="pw-eyeoff" class="w-4 h-4 hidden" stroke-width={1.5} />
+            </button>
+          </div>
+          <div class="sm:col-span-2">
+            <button
+              id="add-user-btn"
+              type="submit"
+              class="w-full h-10 rounded-lg bg-accent/15 text-accent font-semibold hover:bg-accent/25 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2"
+            >
+              <UserPlus class="w-4 h-4" stroke-width={1.5} />
+              <span>Add User</span>
+            </button>
+          </div>
+        </form>
+
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2.5">
+            <p class="text-xs text-text-secondary uppercase font-semibold tracking-wider">Users</p>
+            <span id="user-count" class="text-xs text-text-secondary/70 font-mono">0</span>
+          </div>
+          <div class="relative mb-2.5">
+            <input
+              id="user-search"
+              type="text"
+              placeholder="Filter users..."
+              autocomplete="off"
+              class="w-full h-9 pl-8 pr-3 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+            />
+            <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-placeholder pointer-events-none" stroke-width={1.5} />
+          </div>
+          <ul id="user-list" class="space-y-1.5 text-sm text-text">
+            <li class="text-text-secondary text-xs italic py-2">Loading...</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Reset Modal -->
+  <div id="reset-pw-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center px-4">
+    <div id="reset-pw-overlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-sm rounded-2xl border border-white/10 bg-background/95 backdrop-blur-md shadow-2xl p-6 space-y-4">
+      <div class="flex items-center gap-2.5">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent">
+          <KeyRound class="w-4 h-4" stroke-width={1.5} />
+        </div>
+        <div>
+          <h3 class="text-sm font-semibold text-text uppercase tracking-wide font-display">Reset Password</h3>
+          <p class="text-xs text-text-secondary mt-0.5">for <span id="reset-pw-username" class="text-text font-medium"></span></p>
+        </div>
+      </div>
+      <form id="reset-pw-form" class="space-y-3">
+        <div class="relative">
+          <input
+            id="reset-pw-input"
+            name="reset-pw-input"
+            type="password"
+            autocomplete="new-password"
+            placeholder="New password"
+            required
+            minlength="6"
+            class="w-full h-10 px-3 pr-10 bg-white/[0.03] border border-white/10 rounded-lg text-sm text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] transition-all"
+          />
+          <button
+            type="button"
+            id="reset-pw-toggle"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-text-placeholder hover:text-text transition-colors"
+            aria-label="Show password"
+          >
+            <Eye id="reset-pw-eye" class="w-4 h-4" stroke-width={1.5} />
+            <EyeOff id="reset-pw-eyeoff" class="w-4 h-4 hidden" stroke-width={1.5} />
+          </button>
+        </div>
+        <p class="text-xs text-text-secondary">Password must be at least 6 characters.</p>
+        <div class="flex gap-2 pt-1">
+          <button
+            type="button"
+            id="reset-pw-cancel"
+            class="flex-1 h-10 rounded-lg bg-white/5 border border-white/10 text-text-secondary font-medium hover:bg-white/10 transition-all text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            id="reset-pw-submit"
+            class="flex-1 h-10 rounded-lg bg-accent/15 text-accent font-semibold hover:bg-accent/25 active:scale-[0.98] transition-all text-sm"
+          >
+            Reset
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    import { showToast } from "@/lib/toast";
+    import { createUser, deleteUser, getUsers, resetUserPassword } from "@/lib/admin";
+
+    let adminUsername = "";
+    let allUsers: string[] = [];
+    let resetTargetUsername = "";
+
+    function openResetPwModal(username: string) {
+      resetTargetUsername = username;
+      const label = document.getElementById("reset-pw-username");
+      if (label) label.textContent = username;
+      const input = document.getElementById("reset-pw-input") as HTMLInputElement | null;
+      if (input) {
+        input.value = "";
+        input.type = "password";
+      }
+      document.getElementById("reset-pw-eye")?.classList.remove("hidden");
+      document.getElementById("reset-pw-eyeoff")?.classList.add("hidden");
+      document.getElementById("reset-pw-modal")?.classList.remove("hidden");
+      setTimeout(() => input?.focus(), 50);
+    }
+
+    function closeResetPwModal() {
+      document.getElementById("reset-pw-modal")?.classList.add("hidden");
+      resetTargetUsername = "";
+      const input = document.getElementById("reset-pw-input") as HTMLInputElement | null;
+      if (input) input.value = "";
+    }
+
+    function escapeHtml(text: string): string {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function renderUserList(filter: string) {
+      const list = document.getElementById("user-list");
+      if (!list) return;
+
+      const query = filter.trim().toLowerCase();
+      const filteredUsers = query ? allUsers.filter((u) => u.toLowerCase().includes(query)) : allUsers;
+      const showAdmin = !query || adminUsername.toLowerCase().includes(query);
+
+      if (filteredUsers.length === 0 && !showAdmin) {
+        list.innerHTML = '<li class="text-text-secondary text-xs italic py-2 text-center">No matching users</li>';
+        return;
+      }
+
+      const items: string[] = [];
+
+      if (adminUsername && showAdmin) {
+        items.push(
+          `<li class="flex items-center justify-between bg-accent/[0.06] border border-accent/15 p-2.5 rounded-lg">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-accent shrink-0" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="truncate text-text font-medium">${escapeHtml(adminUsername)}</span>
+            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/15 px-2 py-0.5 rounded shrink-0">Admin</span>
+          </li>`,
+        );
+      }
+
+      for (const username of filteredUsers) {
+        items.push(
+          `<li class="flex items-center justify-between bg-white/[0.03] border border-white/5 p-2.5 rounded-lg hover:border-white/10 transition-colors">
+            <div class="flex items-center gap-2 min-w-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-secondary shrink-0" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="truncate">${escapeHtml(username)}</span>
+            </div>
+            <div class="flex items-center gap-0.5 shrink-0">
+              <button data-username="${escapeHtml(username)}" class="reset-pw-user text-text-secondary hover:text-accent transition-colors p-1 rounded" aria-label="Reset password for ${escapeHtml(username)}" title="Reset password">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+              </button>
+              <button data-username="${escapeHtml(username)}" class="delete-user text-text-secondary hover:text-rose-400 transition-colors p-1 rounded" aria-label="Delete ${escapeHtml(username)}" title="Delete user">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+          </li>`,
+        );
+      }
+
+      list.innerHTML = items.join("");
+
+      list.querySelectorAll<HTMLButtonElement>(".reset-pw-user").forEach((button) => {
+        button.addEventListener("click", () => {
+          const username = button.getAttribute("data-username");
+          if (!username) return;
+          openResetPwModal(username);
+        });
+      });
+
+      list.querySelectorAll<HTMLButtonElement>(".delete-user").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const username = button.getAttribute("data-username");
+          if (!username) return;
+          if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+
+          button.disabled = true;
+          button.style.opacity = "0.4";
+
+          try {
+            await deleteUser(username);
+            showToast(`User "${username}" deleted`, "success");
+            await loadUsers();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to delete user", "error");
+            button.disabled = false;
+            button.style.opacity = "1";
+          }
+        });
+      });
+    }
+
+    async function loadUsers() {
+      const list = document.getElementById("user-list");
+      const countEl = document.getElementById("user-count");
+      const searchInput = document.getElementById("user-search") as HTMLInputElement | null;
+      if (!list) return;
+
+      list.innerHTML = '<li class="text-text-secondary text-xs italic py-2">Loading...</li>';
+
+      try {
+        allUsers = await getUsers();
+
+        if (countEl) countEl.textContent = String(allUsers.length + (adminUsername ? 1 : 0));
+
+        if (allUsers.length === 0 && !adminUsername) {
+          list.innerHTML = '<li class="text-text-secondary text-xs italic">No users yet</li>';
+          return;
+        }
+
+        renderUserList(searchInput?.value ?? "");
+      } catch {
+        list.innerHTML = '<li class="text-text-secondary text-xs">Failed to load users</li>';
+      }
+    }
+
+    async function initAdminPage() {
+      try {
+        const res = await fetch("/api/auth/session");
+        if (!res.ok) {
+          document.getElementById("admin-access-denied")?.classList.remove("hidden");
+          return;
+        }
+        const data = await res.json();
+        if (!data.isAdmin) {
+          document.getElementById("admin-access-denied")?.classList.remove("hidden");
+          return;
+        }
+
+        adminUsername = data.user;
+        document.getElementById("admin-panel")?.classList.remove("hidden");
+
+        const searchInput = document.getElementById("user-search") as HTMLInputElement | null;
+        searchInput?.addEventListener("input", () => {
+          renderUserList(searchInput.value);
+        });
+
+        const toggleBtn = document.getElementById("toggle-password-visibility");
+        const pwInput = document.getElementById("new-password") as HTMLInputElement | null;
+        const eyeIcon = document.getElementById("pw-eye");
+        const eyeoffIcon = document.getElementById("pw-eyeoff");
+        toggleBtn?.addEventListener("click", () => {
+          if (!pwInput) return;
+          const isPassword = pwInput.type === "password";
+          pwInput.type = isPassword ? "text" : "password";
+          eyeIcon?.classList.toggle("hidden", isPassword);
+          eyeoffIcon?.classList.toggle("hidden", !isPassword);
+          toggleBtn.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+        });
+
+        const addUserForm = document.getElementById("add-user-form");
+        const addUserBtn = document.getElementById("add-user-btn");
+
+        addUserForm?.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const usernameInput = document.getElementById("new-username") as HTMLInputElement | null;
+          const passwordInput = document.getElementById("new-password") as HTMLInputElement | null;
+          if (!usernameInput || !passwordInput) return;
+
+          const username = usernameInput.value.trim();
+          const password = passwordInput.value;
+          if (!username || !password) return;
+
+          if (addUserBtn) {
+            addUserBtn.setAttribute("disabled", "true");
+            addUserBtn.style.opacity = "0.6";
+            const span = addUserBtn.querySelector("span");
+            if (span) span.textContent = "Adding...";
+          }
+
+          try {
+            await createUser(username, password);
+            usernameInput.value = "";
+            passwordInput.value = "";
+            if (searchInput) searchInput.value = "";
+            showToast(`User "${username}" created`, "success");
+            await loadUsers();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to add user", "error");
+          } finally {
+            if (addUserBtn) {
+              addUserBtn.removeAttribute("disabled");
+              addUserBtn.style.opacity = "1";
+              const span = addUserBtn.querySelector("span");
+              if (span) span.textContent = "Add User";
+            }
+          }
+        });
+
+        const resetModal = document.getElementById("reset-pw-modal");
+        const resetOverlay = document.getElementById("reset-pw-overlay");
+        const resetForm = document.getElementById("reset-pw-form") as HTMLFormElement | null;
+        const resetInput = document.getElementById("reset-pw-input") as HTMLInputElement | null;
+        const resetCancelBtn = document.getElementById("reset-pw-cancel");
+        const resetSubmitBtn = document.getElementById("reset-pw-submit");
+        const resetToggleBtn = document.getElementById("reset-pw-toggle");
+        const resetEyeIcon = document.getElementById("reset-pw-eye");
+        const resetEyeoffIcon = document.getElementById("reset-pw-eyeoff");
+
+        resetOverlay?.addEventListener("click", closeResetPwModal);
+        resetCancelBtn?.addEventListener("click", closeResetPwModal);
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && resetModal && !resetModal.classList.contains("hidden")) {
+            closeResetPwModal();
+          }
+        });
+
+        resetToggleBtn?.addEventListener("click", () => {
+          if (!resetInput) return;
+          const isPassword = resetInput.type === "password";
+          resetInput.type = isPassword ? "text" : "password";
+          resetEyeIcon?.classList.toggle("hidden", isPassword);
+          resetEyeoffIcon?.classList.toggle("hidden", !isPassword);
+          resetToggleBtn.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+        });
+
+        resetForm?.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (!resetInput || !resetTargetUsername) return;
+          const password = resetInput.value;
+          if (!password || password.length < 6) return;
+
+          if (resetSubmitBtn) {
+            resetSubmitBtn.setAttribute("disabled", "true");
+            resetSubmitBtn.style.opacity = "0.6";
+            resetSubmitBtn.textContent = "Resetting...";
+          }
+
+          try {
+            await resetUserPassword(resetTargetUsername, password);
+            showToast(`Password reset for "${resetTargetUsername}"`, "success");
+            closeResetPwModal();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to reset password", "error");
+          } finally {
+            if (resetSubmitBtn) {
+              resetSubmitBtn.removeAttribute("disabled");
+              resetSubmitBtn.style.opacity = "1";
+              resetSubmitBtn.textContent = "Reset";
+            }
+          }
+        });
+
+        await loadUsers();
+      } catch {
+        document.getElementById("admin-access-denied")?.classList.remove("hidden");
+      }
+    }
+
+    initAdminPage();
+  </script>
+</Layout>

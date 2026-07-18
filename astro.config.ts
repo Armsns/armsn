@@ -3,12 +3,9 @@ import path from "node:path";
 import node from "@astrojs/node";
 import react from "@astrojs/react";
 import tailwind from "@astrojs/tailwind";
-import { baremuxPath } from "@mercuryworkshop/bare-mux/node";
-import { epoxyPath } from "@mercuryworkshop/epoxy-transport";
 import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 import compress from "@playform/compress";
 import { defineConfig } from "astro/config";
-import { viteStaticCopy } from "vite-plugin-static-copy";
 import INConfig from "./config";
 
 const integrations = [react(), tailwind({ applyBaseStyles: false })];
@@ -51,7 +48,9 @@ export default defineConfig({
       __COMMIT_DATE__: JSON.stringify(
         (() => {
           try {
-            return execFileSync("git", ["show", "--no-patch", "--format=%ci"])
+            return execFileSync("git", ["--no-pager", "show", "--no-patch", "--format=%ci"], {
+              stdio: ["ignore", "pipe", "ignore"],
+            })
               .toString()
               .trim()
               .replace(/[<>"'&]/g, "");
@@ -85,22 +84,7 @@ export default defineConfig({
           server.httpServer?.on("upgrade", (req: any, socket: any, head: any) => (req.url?.startsWith("/f") ? wisp.routeRequest(req, socket, head) : undefined));
         },
       },
-      viteStaticCopy({
-        targets: [
-          {
-            src: `${epoxyPath}/**/*.mjs`.replace(/\\/g, "/"),
-            dest: "assets/bundled",
-            overwrite: false,
-            rename: (name: string) => `ex-${name}.mjs`,
-          },
-          {
-            src: `${baremuxPath}/**/*.js`.replace(/\\/g, "/"),
-            dest: "assets/bundled",
-            overwrite: false,
-            rename: (name: string) => `bm-${name}.js`,
-          },
-        ],
-      }),
+
     ] as any,
   },
 });

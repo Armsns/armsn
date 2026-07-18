@@ -305,6 +305,7 @@ import Layout from "@/layouts/Main.astro";
 
   <script>
     import { showToast } from "@/lib/toast";
+    import { createUser, deleteUser, getUsers, resetUserPassword } from "@/lib/admin";
 
     let adminUsername = "";
     let allUsers: string[] = [];
@@ -409,18 +410,11 @@ import Layout from "@/layouts/Main.astro";
           button.style.opacity = "0.4";
 
           try {
-            const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: "DELETE" });
-            if (res.ok) {
-              showToast(`User "${username}" deleted`, "success");
-              await loadUsers();
-            } else {
-              const errData = await res.json().catch(() => ({ error: "Delete failed" }));
-              showToast(errData.error || "Failed to delete user", "error");
-              button.disabled = false;
-              button.style.opacity = "1";
-            }
-          } catch {
-            showToast("Network error. Try again.", "error");
+            await deleteUser(username);
+            showToast(`User "${username}" deleted`, "success");
+            await loadUsers();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to delete user", "error");
             button.disabled = false;
             button.style.opacity = "1";
           }
@@ -437,13 +431,7 @@ import Layout from "@/layouts/Main.astro";
       list.innerHTML = '<li class="text-text-secondary text-xs italic py-2">Loading...</li>';
 
       try {
-        const res = await fetch("/api/admin/users");
-        if (!res.ok) {
-          list.innerHTML = '<li class="text-text-secondary text-xs">Failed to load users</li>';
-          return;
-        }
-        const data = await res.json();
-        allUsers = data.users || [];
+        allUsers = await getUsers();
 
         if (countEl) countEl.textContent = String(allUsers.length + (adminUsername ? 1 : 0));
 
@@ -512,24 +500,14 @@ import Layout from "@/layouts/Main.astro";
           }
 
           try {
-            const res = await fetch("/api/admin/users", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username, password }),
-            });
-
-            if (res.ok) {
-              usernameInput.value = "";
-              passwordInput.value = "";
-              if (searchInput) searchInput.value = "";
-              showToast(`User "${username}" created`, "success");
-              await loadUsers();
-            } else {
-              const errData = await res.json().catch(() => ({ error: "Failed to add user" }));
-              showToast(errData.error || "Failed to add user", "error");
-            }
-          } catch {
-            showToast("Network error. Try again.", "error");
+            await createUser(username, password);
+            usernameInput.value = "";
+            passwordInput.value = "";
+            if (searchInput) searchInput.value = "";
+            showToast(`User "${username}" created`, "success");
+            await loadUsers();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to add user", "error");
           } finally {
             if (addUserBtn) {
               addUserBtn.removeAttribute("disabled");
@@ -582,21 +560,11 @@ import Layout from "@/layouts/Main.astro";
           }
 
           try {
-            const res = await fetch(`/api/admin/users/${encodeURIComponent(resetTargetUsername)}/password`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ password }),
-            });
-
-            if (res.ok) {
-              showToast(`Password reset for "${resetTargetUsername}"`, "success");
-              closeResetPwModal();
-            } else {
-              const errData = await res.json().catch(() => ({ error: "Failed to reset password" }));
-              showToast(errData.error || "Failed to reset password", "error");
-            }
-          } catch {
-            showToast("Network error. Try again.", "error");
+            await resetUserPassword(resetTargetUsername, password);
+            showToast(`Password reset for "${resetTargetUsername}"`, "success");
+            closeResetPwModal();
+          } catch (err) {
+            showToast(err instanceof Error ? err.message : "Failed to reset password", "error");
           } finally {
             if (resetSubmitBtn) {
               resetSubmitBtn.removeAttribute("disabled");

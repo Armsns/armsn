@@ -6,6 +6,7 @@ import LogOut from "lucide-astro/LogOut";
 import Menu from "lucide-astro/Menu";
 import MessageSquare from "lucide-astro/MessageSquare";
 import Settings2 from "lucide-astro/Settings2";
+import Shield from "lucide-astro/Shield";
 import X from "lucide-astro/X";
 import ProxyStatus from "@/components/ProxyStatus.astro";
 import Layout from "@/layouts/Layout.astro";
@@ -17,6 +18,8 @@ const navLinks = [
   { href: "/chat", text: "Chat", Icon: MessageSquare },
   { href: "/settings", text: "Settings", Icon: Settings2 },
 ];
+
+const adminLink = { href: "/admin", text: "Admin", Icon: Shield };
 ---
 
 <Layout>
@@ -44,6 +47,14 @@ const navLinks = [
           </a>
         ))
       }
+      <a
+        id="admin-nav-link"
+        href={adminLink.href}
+        class="hidden inline-flex items-center gap-2 rounded-md px-4 py-2 text-base text-text-secondary hover:-translate-y-0.5"
+      >
+        <Shield class="w-5 h-5" strokeWidth={1.5} />
+        <span>{adminLink.text}</span>
+      </a>
       <ProxyStatus class="ml-2" />
       <button
         id="logout-button"
@@ -81,6 +92,15 @@ const navLinks = [
         </a>
       ))
     }
+    <a
+      id="admin-menu-link"
+      href={adminLink.href}
+      class="menu-item hidden items-center gap-3 px-4 py-3 text-text-secondary hover:text-text hover:bg-white/10 transition-all duration-150"
+      style={`transition-delay: ${navLinks.length * 30}ms;`}
+    >
+      <Shield class="w-5 h-5" strokeWidth={1.5} />
+      <span class="text-base">{adminLink.text}</span>
+    </a>
     <button
       id="logout-button-mobile"
       type="button"
@@ -130,6 +150,19 @@ const navLinks = [
     window.location.href = "/login";
   }
 
+  async function checkAdmin() {
+    try {
+      const res = await fetch("/api/auth/session");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.isAdmin) return;
+      document.getElementById("admin-nav-link")?.classList.remove("hidden");
+      document.getElementById("admin-menu-link")?.classList.remove("hidden");
+    } catch {
+      // ignore
+    }
+  }
+
   document.addEventListener("astro:page-load", () => {
     const navStyle = localStorage.getItem("nav-style") || "inline";
     const toggle = document.getElementById(getId("menu-toggle"));
@@ -139,6 +172,8 @@ const navLinks = [
     const closeIcon = document.getElementById(getId("close-icon"));
     const logoutBtn = document.getElementById(getId("logout-button"));
     const logoutMobileBtn = document.getElementById(getId("logout-button-mobile"));
+
+    void checkAdmin();
 
     logoutBtn?.addEventListener("click", logout);
     logoutMobileBtn?.addEventListener("click", logout);

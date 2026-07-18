@@ -1,1 +1,0 @@
-importScripts("/assets/bundled/v.bndl.js"),importScripts("/assets/bundled/v.cnfg.js"),importScripts("/assets/bundled/v.sw.js");const uv=new UVServiceWorker;self.addEventListener("fetch",s=>{s.respondWith((async()=>uv.route(s)?await uv.fetch(s):await fetch(s.request))())});
