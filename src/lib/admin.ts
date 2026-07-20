@@ -63,3 +63,57 @@ export async function resetUserPassword(username: string, password: string): Pro
   }
   return data;
 }
+
+export interface AnalyticsEvent {
+  id: string;
+  event_type: string;
+  path: string | null;
+  username: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AnalyticsData {
+  totalViews: number;
+  uniqueVisitors: number;
+  totalServerRequests: number;
+  viewsOverTime: Array<{ day: string; count: number }>;
+  serverRequestsOverTime: Array<{ day: string; count: number }>;
+  recentLogins: AnalyticsEvent[];
+  recentProxyUsage: AnalyticsEvent[];
+  recentServerRequests: AnalyticsEvent[];
+  topPages: Array<{ path: string; count: number }>;
+}
+
+export async function getAnalytics(startDate?: string, endDate?: string): Promise<AnalyticsData> {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const query = params.toString();
+  const res = await fetch(`/api/admin/analytics${query ? `?${query}` : ""}`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: "Failed to load analytics" }))) as { error?: string };
+    throw new Error(data.error || "Failed to load analytics");
+  }
+  return (await res.json()) as AnalyticsData;
+}
+
+export interface ProxyHistoryItem {
+  id: string;
+  target: string;
+  created_at: string;
+}
+
+export interface ProxyHistoryResponse {
+  history: ProxyHistoryItem[];
+}
+
+export async function getUserProxyHistory(username: string): Promise<ProxyHistoryItem[]> {
+  const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}/proxy-history`);
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: "Failed to load proxy history" }))) as { error?: string };
+    throw new Error(data.error || "Failed to load proxy history");
+  }
+  const result = (await res.json()) as ProxyHistoryResponse;
+  return result.history || [];
+}

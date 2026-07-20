@@ -85,6 +85,7 @@ async function Start() {
 
   const app = Fastify({
     serverFactory: (handler) => createServer(handler).on("upgrade", (req, socket: Socket, head) => (req.url?.startsWith("/f") ? wisp.routeRequest(req, socket, head) : socket.destroy())),
+    trustProxy: process.env.TRUST_PROXY === "true",
   });
 
   if (INConfig.server?.compress !== false) {
@@ -230,6 +231,25 @@ async function Start() {
     return reply.redirect("/login");
   });
 
+  // Track general server requests (HTML pages only, skip static assets, API calls, and proxy routes).
+  app.addHook("onRequest", async (req, reply) => {
+    const url = req.url;
+    const isStatic = PUBLIC_PREFIXES.some((prefix) => url.startsWith(prefix));
+    const isApi = url.startsWith("/api/");
+    const isProxy = url.startsWith(`/${scramjetRoute}/`);
+    if (isStatic || isApi || isProxy) return;
+
+    const session = parseSessionCookie(req.headers.cookie);
+    trackAnalytics({
+      event_type: "server_request",
+      path: url.split("?")[0],
+      user_agent: req.headers["user-agent"],
+      ip: req.ip,
+      username: session?.username,
+      metadata: { method: req.method },
+    });
+  });
+
   app.post("/api/auth/login", async (req, reply) => {
     const body = (req.body ?? {}) as { username?: unknown; password?: unknown };
     const username = typeof body.username === "string" ? body.username.trim() : "";
@@ -255,6 +275,13 @@ async function Start() {
 
     const sessionValue = await createSession(username);
     setSessionCookie(reply, sessionValue, 7 * 24 * 60 * 60);
+    trackAnalytics({
+      event_type: "login",
+      user_agent: req.headers["user-agent"],
+      ip: req.ip,
+      username,
+      metadata: { source: envUserPass ? "env" : "dynamic" },
+    });
     return reply.code(200).send({ success: true });
   });
 
@@ -366,6 +393,247 @@ async function Start() {
       return reply.code(500).send({ error: "Failed to update password" });
     }
     return reply.code(200).send({ success: true, username });
+  });
+
+  app.get("/api/admin/users/:username/proxy-history", async (req, reply) => {
+    if (!isAdminSession(req.headers.cookie)) {
+      return reply.code(403).send({ error: "Forbidden" });
+    }
+    const { username } = req.params as { username: string };
+    const { data, error } = await supabase
+      .from("analytics")
+      .select("id, event_type, path, username, metadata, created_at")
+      .eq("event_type", "proxy_usage")
+      .eq("username", username)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      console.error("[ARM$N] Failed to fetch proxy history:", error.message);
+      return reply.code(500).send({ error: "Failed to fetch proxy history" });
+    }
+    const history = (data ?? []).map((event) => {
+      const metadata = (event.metadata as { target?: string } | null) ?? {};
+      let target = metadata.target ?? "";
+      try {
+        target = decodeURIComponent(target);
+      } catch {
+        // keep original target if decoding fails
+      }
+      return {
+        id: event.id,
+        target,
+        created_at: event.created_at,
+      };
+    });
+    return reply.code(200).send({ history });
+  });
+
+  // Analytics helpers
+  const ANALYTICS_IP_SALT =
+    process.env.ANALYTICS_IP_SALT ||
+    process.env.AUTH_SECRET ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    "armn-analytics-salt";
+
+  if (!process.env.ANALYTICS_IP_SALT && !process.env.AUTH_SECRET) {
+    console.warn(
+      "[ARM$N] ANALYTICS_IP_SALT is not set. Visitor hashing is falling back to a derived/default value. Set ANALYTICS_IP_SALT (or AUTH_SECRET) for stable visitor counts across restarts.",
+    );
+  }
+
+  function hashIp(ip: string): string {
+    return crypto.createHmac("sha256", ANALYTICS_IP_SALT).update(ip).digest("hex");
+  }
+
+  function trackAnalytics(event: {
+    event_type: string;
+    path?: string;
+    user_agent?: string;
+    ip?: string;
+    username?: string;
+    metadata?: Record<string, unknown>;
+  }): void {
+    const ip_hash = event.ip ? hashIp(event.ip) : undefined;
+    void supabase.from("analytics").insert({
+      event_type: event.event_type,
+      path: event.path,
+      user_agent: event.user_agent,
+      ip_hash,
+      username: event.username,
+      metadata: event.metadata ?? {},
+    }).then(({ error }) => {
+      if (error) {
+        console.error("[ARM$N] Failed to track analytics:", error.message);
+      }
+    });
+  }
+
+  const analyticsRateLimits = new Map<string, number>();
+  const ANALYTICS_RATE_LIMIT_MS = 1000;
+
+  // Clean up stale analytics rate-limit entries to prevent unbounded growth.
+  setInterval(() => {
+    const cutoff = Date.now() - ANALYTICS_RATE_LIMIT_MS * 2;
+    for (const [ip, lastPost] of analyticsRateLimits) {
+      if (lastPost < cutoff) {
+        analyticsRateLimits.delete(ip);
+      }
+    }
+  }, 60_000);
+
+  app.post("/api/analytics/track", async (req, reply) => {
+    const clientIp = req.ip || "unknown";
+    const now = Date.now();
+    const lastPost = analyticsRateLimits.get(clientIp) ?? 0;
+    if (now - lastPost < ANALYTICS_RATE_LIMIT_MS) {
+      return reply.code(429).send({ error: "Rate limited" });
+    }
+    analyticsRateLimits.set(clientIp, now);
+
+    const body = (req.body ?? {}) as {
+      event_type?: unknown;
+      path?: unknown;
+      metadata?: unknown;
+    };
+    const event_type = typeof body.event_type === "string" ? body.event_type.trim() : "";
+    if (!event_type) {
+      return reply.code(400).send({ error: "event_type is required" });
+    }
+    const path = typeof body.path === "string" ? body.path : undefined;
+    const metadata = typeof body.metadata === "object" && body.metadata !== null ? (body.metadata as Record<string, unknown>) : {};
+    const session = parseSessionCookie(req.headers.cookie);
+    trackAnalytics({
+      event_type,
+      path,
+      user_agent: req.headers["user-agent"],
+      ip: req.ip,
+      username: session?.username,
+      metadata,
+    });
+    return reply.code(200).send({ success: true });
+  });
+
+  app.get("/api/admin/analytics", async (req, reply) => {
+    if (!isAdminSession(req.headers.cookie)) {
+      return reply.code(403).send({ error: "Forbidden" });
+    }
+
+    const now = new Date();
+
+    const query = req.query as { startDate?: string; endDate?: string };
+    const startDate = query.startDate ? new Date(query.startDate) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const endDateInput = query.endDate ? new Date(query.endDate) : now;
+    // Make the selected end date inclusive by using the end of that day.
+    const endDate = new Date(endDateInput);
+    endDate.setHours(23, 59, 59, 999);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return reply.code(400).send({ error: "Invalid date range" });
+    }
+    if (startDate > endDate) {
+      return reply.code(400).send({ error: "startDate must be before endDate" });
+    }
+    const maxRangeMs = 365 * 24 * 60 * 60 * 1000;
+    if (endDate.getTime() - startDate.getTime() > maxRangeMs) {
+      return reply.code(400).send({ error: "Date range cannot exceed 1 year" });
+    }
+
+    const [
+      totalViewsResult,
+      uniqueVisitorsResult,
+      serverRequestsCountResult,
+      loginsResult,
+      proxyResult,
+      serverRequestsResult,
+      topPagesResult,
+      viewsOverTimeResult,
+      serverRequestsOverTimeResult,
+    ] = await Promise.all([
+      supabase
+        .from("analytics")
+        .select("*", { count: "exact", head: true })
+        .eq("event_type", "page_view"),
+      supabase.rpc("get_unique_visitor_count", {
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+      }),
+      supabase
+        .from("analytics")
+        .select("*")
+        .eq("event_type", "login")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("analytics")
+        .select("*")
+        .eq("event_type", "proxy_usage")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("analytics")
+        .select("*", { count: "exact", head: true })
+        .eq("event_type", "server_request"),
+      supabase
+        .from("analytics")
+        .select("*")
+        .eq("event_type", "server_request")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase.rpc("get_top_pages", {
+        page_limit: 10,
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+      }),
+      supabase.rpc("get_daily_event_counts", {
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        event_type_filter: "page_view",
+      }),
+      supabase.rpc("get_daily_event_counts", {
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        event_type_filter: "server_request",
+      }),
+    ]);
+
+    const errors = [
+      totalViewsResult.error,
+      uniqueVisitorsResult.error,
+
+      loginsResult.error,
+      proxyResult.error,
+      serverRequestsCountResult.error,
+      serverRequestsResult.error,
+      topPagesResult.error,
+      viewsOverTimeResult.error,
+      serverRequestsOverTimeResult.error,
+    ];
+    if (errors.some(Boolean)) {
+      console.error("[ARM$N] Failed to fetch analytics", errors.filter(Boolean));
+      return reply.code(500).send({ error: "Failed to fetch analytics" });
+    }
+
+    const topPagesArray = (topPagesResult.data ?? []).map((row: { path: string; count: number }) => ({
+      path: row.path,
+      count: Number(row.count),
+    }));
+
+    return reply.code(200).send({
+      totalViews: totalViewsResult.count ?? 0,
+      uniqueVisitors: Number(uniqueVisitorsResult.data ?? 0),
+      totalServerRequests: serverRequestsCountResult.count ?? 0,
+      viewsOverTime: (viewsOverTimeResult.data ?? []).map((row: { day: string; count: number }) => ({
+        day: row.day,
+        count: Number(row.count),
+      })),
+      serverRequestsOverTime: (serverRequestsOverTimeResult.data ?? []).map((row: { day: string; count: number }) => ({
+        day: row.day,
+        count: Number(row.count),
+      })),
+      recentLogins: loginsResult.data ?? [],
+      recentProxyUsage: proxyResult.data ?? [],
+      recentServerRequests: serverRequestsResult.data ?? [],
+      topPages: topPagesArray,
+    });
   });
 
   if (obfuscationMaps) {
@@ -513,6 +781,15 @@ self.addEventListener("fetch", (event) => {
 
   app.get(`/${scramjetRoute}/*`, (req, reply) => {
     const encodedPath = req.url.slice(`/${scramjetRoute}/`.length);
+    const session = parseSessionCookie(req.headers.cookie);
+    trackAnalytics({
+      event_type: "proxy_usage",
+      path: `/${scramjetRoute}/${encodedPath}`,
+      user_agent: req.headers["user-agent"],
+      ip: req.ip,
+      username: session?.username,
+      metadata: { target: encodedPath },
+    });
     let targetUrl = "";
     try {
       targetUrl = decodeURIComponent(encodedPath);
@@ -609,137 +886,6 @@ self.addEventListener("fetch", (event) => {
     });
   });
 
-  interface ChatMessage {
-    id: string;
-    user: string;
-    text: string;
-    time: string;
-  }
-
-  const chatMessages: ChatMessage[] = [];
-  const chatClients = new Set<(msg: ChatMessage) => void>();
-  const chatRateLimits = new Map<string, number>();
-
-  async function hydrateChatMessages(): Promise<void> {
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .select("id, user, text, time")
-      .order("time", { ascending: true })
-      .limit(100);
-    if (error) {
-      console.error("[ARM$N] Failed to hydrate chat messages:", error.message);
-      return;
-    }
-    chatMessages.push(...(data ?? []));
-  }
-
-  await hydrateChatMessages();
-
-  setInterval(() => {
-    const cutoff = Date.now() - 60_000;
-    for (const [user, time] of chatRateLimits) {
-      if (time < cutoff) chatRateLimits.delete(user);
-    }
-  }, 60_000);
-
-  function getChatUser(req: FastifyRequest): string {
-    const session = (req as FastifyRequest & { session?: Session }).session || parseSessionCookie(req.headers.cookie);
-    return session?.username || "unknown";
-  }
-
-  app.get("/api/chat/messages", async (_req, reply) => {
-    return reply.code(200).send({ messages: chatMessages.slice(-100) });
-  });
-
-  app.post("/api/chat/messages", async (req, reply) => {
-    const body = (req.body ?? {}) as { text?: unknown };
-    const text = typeof body.text === "string" ? body.text.trim() : "";
-    if (!text) {
-      return reply.code(400).send({ error: "Message text is required" });
-    }
-    if (text.length > 1000) {
-      return reply.code(400).send({ error: "Message too long (max 1000 chars)" });
-    }
-
-    const user = getChatUser(req);
-    const now = Date.now();
-    const lastPost = chatRateLimits.get(user) ?? 0;
-    if (now - lastPost < 1000) {
-      return reply.code(429).send({ error: "Rate limited. Wait a second between messages." });
-    }
-    chatRateLimits.set(user, now);
-
-    const message: ChatMessage = {
-      id: crypto.randomUUID(),
-      user,
-      text,
-      time: new Date().toISOString(),
-    };
-
-    chatMessages.push(message);
-    if (chatMessages.length > 100) chatMessages.shift();
-
-    for (const client of chatClients) {
-      try {
-        client(message);
-      } catch {}
-    }
-
-    supabase
-      .from("chat_messages")
-      .insert(message)
-      .then(({ error }) => {
-        if (error) {
-          console.error("[ARM$N] Failed to persist chat message:", error.message);
-        }
-      });
-
-    return reply.code(200).send(message);
-  });
-
-  app.get("/api/chat/stream", async (req, reply) => {
-    reply.hijack();
-    const raw = reply.raw;
-    raw.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    });
-
-    const send = (msg: ChatMessage) => {
-      try {
-        raw.write(`data: ${JSON.stringify(msg)}\n\n`);
-      } catch {}
-    };
-
-    chatClients.add(send);
-
-    for (const msg of chatMessages.slice(-20)) {
-      send(msg);
-    }
-
-    const keepalive = setInterval(() => {
-      try {
-        raw.write(":keepalive\n\n");
-      } catch {
-        clearInterval(keepalive);
-      }
-    }, 30000);
-
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      clearInterval(keepalive);
-      chatClients.delete(send);
-    };
-
-    req.raw.on("close", cleanup);
-    req.raw.on("error", cleanup);
-    req.raw.on("end", cleanup);
-  });
-
   app.addHook("onSend", (_request, reply, _payload, done) => {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("X-Frame-Options", "SAMEORIGIN");
@@ -753,10 +899,9 @@ self.addEventListener("fetch", (event) => {
     done();
   });
 
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore - generated by astro build
   let handler: (req: unknown, res: unknown, next?: () => void) => void;
   try {
+    // @ts-ignore - generated by astro build
     ({ handler } = (await import("./dist/server/entry.mjs")) as {
       handler: (req: unknown, res: unknown, next?: () => void) => void;
     });
@@ -940,7 +1085,8 @@ self.addEventListener("fetch", (event) => {
   } else {
     app.use(handler);
   }
-  app.listen({ port }, (err, addr) => {
+  const host = process.env.HOST || "0.0.0.0";
+  app.listen({ port, host }, (err, addr) => {
     if (err) {
       console.error("Server failed to start:", err);
       process.exit(1);

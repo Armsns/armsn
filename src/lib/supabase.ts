@@ -20,13 +20,6 @@ export interface DbUser {
   created_at: string;
 }
 
-export interface DbChatMessage {
-  id: string;
-  user: string;
-  text: string;
-  time: string;
-}
-
 export interface DbSession {
   id: string;
   username: string;

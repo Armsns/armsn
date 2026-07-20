@@ -1,4 +1,4 @@
-import { AppWindow, Gamepad2, Globe, Home, LayoutGrid, MessageSquare, Search, Settings2 } from "lucide-react";
+import { AppWindow, Gamepad2, Globe, Home, LayoutGrid, Search, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRoute } from "@/lib/obf-helpers";
 
@@ -40,14 +40,6 @@ const staticItems: PaletteItem[] = [
     icon: AppWindow,
     action: () => {
       window.location.href = getRoute("tabs");
-    },
-  },
-  {
-    id: "chat",
-    name: "Chat",
-    icon: MessageSquare,
-    action: () => {
-      window.location.href = getRoute("chat");
     },
   },
   {

@@ -1,6 +1,6 @@
-import { c as createComponent, r as renderComponent, a as renderTemplate } from '../chunks/astro/server_zxv3i2-L.mjs';
+import { c as createComponent, r as renderComponent, a as renderTemplate } from '../chunks/astro/server_B5uWz4y8.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../chunks/Layout_BC3CbwLl.mjs';
+import { $ as $$Layout } from '../chunks/Layout_LoqxeHD5.mjs';
 import { jsxs, jsx } from 'react/jsx-runtime';
 import { X, Plus, Home, ChevronLeft, ChevronRight, RotateCw, Lock, Clock, Download, Star, Maximize2, Minus, Trash2 } from 'lucide-react';
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';

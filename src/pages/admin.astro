@@ -1,4 +1,5 @@
 ---
+import Activity from "lucide-astro/Activity";
 import Eye from "lucide-astro/Eye";
 import EyeOff from "lucide-astro/EyeOff";
 import KeyRound from "lucide-astro/KeyRound";
@@ -6,6 +7,7 @@ import Search from "lucide-astro/Search";
 import Shield from "lucide-astro/Shield";
 import UserPlus from "lucide-astro/UserPlus";
 import Users from "lucide-astro/Users";
+import AnalyticsCharts from "@/components/AnalyticsCharts";
 import Layout from "@/layouts/Main.astro";
 ---
 
@@ -22,8 +24,25 @@ import Layout from "@/layouts/Main.astro";
       <p class="text-text-secondary text-sm">You must be logged in as the admin user to view this page.</p>
     </div>
 
-    <div id="admin-panel" class="hidden w-full max-w-2xl animate-fade-in">
-      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
+    <div id="admin-panel" class="hidden w-full max-w-4xl animate-fade-in">
+      <div class="flex items-center justify-center gap-2 mb-6">
+        <button
+          id="tab-users"
+          type="button"
+          class="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-text transition-colors"
+        >
+          Users
+        </button>
+        <button
+          id="tab-analytics"
+          type="button"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text hover:bg-white/5 transition-colors"
+        >
+          Analytics
+        </button>
+      </div>
+
+      <div id="users-section" class="rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
         <div class="flex items-center gap-3 mb-6">
           <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-accent/10 text-accent">
             <Users class="w-5 h-5" stroke-width={1.5} />
@@ -96,6 +115,44 @@ import Layout from "@/layouts/Main.astro";
           </ul>
         </div>
       </div>
+
+      <div id="analytics-section" class="hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-accent/10 text-accent">
+            <Activity class="w-5 h-5" stroke-width={1.5} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-text">Analytics</h2>
+            <p class="text-xs text-text-secondary">Page views, visitors, and activity</p>
+          </div>
+        </div>
+
+        <AnalyticsCharts client:load />
+      </div>
+    </div>
+  </div>
+
+  <!-- Proxy History Modal -->
+  <div id="proxy-history-modal" class="hidden fixed inset-0 z-[10000] flex items-center justify-center px-4">
+    <div id="proxy-history-overlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-lg rounded-2xl border border-white/10 bg-background/95 backdrop-blur-md shadow-2xl p-6 space-y-4 max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-text uppercase tracking-wide font-display">Proxy History</h3>
+            <p class="text-xs text-text-secondary mt-0.5">for <span id="proxy-history-username" class="text-text font-medium"></span></p>
+          </div>
+        </div>
+        <button id="proxy-history-close" type="button" class="text-text-secondary hover:text-text transition-colors p-1 rounded" aria-label="Close proxy history">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="proxy-history-content" class="overflow-y-auto space-y-2 pr-1">
+        <p class="text-text-secondary text-sm italic">Loading...</p>
+      </div>
     </div>
   </div>
 
@@ -157,7 +214,7 @@ import Layout from "@/layouts/Main.astro";
 
   <script>
     import { showToast } from "@/lib/toast";
-    import { createUser, deleteUser, getUsers, resetUserPassword } from "@/lib/admin";
+    import { createUser, deleteUser, getUserProxyHistory, getUsers, resetUserPassword } from "@/lib/admin";
 
     let adminUsername = "";
     let allUsers: string[] = [];
@@ -183,6 +240,71 @@ import Layout from "@/layouts/Main.astro";
       resetTargetUsername = "";
       const input = document.getElementById("reset-pw-input") as HTMLInputElement | null;
       if (input) input.value = "";
+    }
+
+    function openProxyHistoryModal(username: string) {
+      const label = document.getElementById("proxy-history-username");
+      if (label) label.textContent = username;
+      document.getElementById("proxy-history-modal")?.classList.remove("hidden");
+      void loadProxyHistory(username);
+    }
+
+    function closeProxyHistoryModal() {
+      document.getElementById("proxy-history-modal")?.classList.add("hidden");
+      const content = document.getElementById("proxy-history-content");
+      if (content) content.innerHTML = '<p class="text-text-secondary text-sm italic">Loading...</p>';
+    }
+
+    function sanitizeProxyTarget(target: string): string | null {
+      try {
+        const url = new URL(target);
+        return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+      } catch {
+        // Try treating the target as a host/path and prefix https://
+        try {
+          const url = new URL(`https://${target}`);
+          return url.href;
+        } catch {
+          return null;
+        }
+      }
+    }
+
+    function renderProxyHistory(history: Array<{ id: string; target: string; created_at: string }>) {
+      const content = document.getElementById("proxy-history-content");
+      if (!content) return;
+      if (history.length === 0) {
+        content.innerHTML = '<p class="text-text-secondary text-sm italic text-center py-4">No proxy history for this user yet.</p>';
+        return;
+      }
+      content.innerHTML = history
+        .map((item) => {
+          const date = formatDate(item.created_at);
+          const safeUrl = sanitizeProxyTarget(item.target);
+          const targetHtml = escapeHtml(item.target);
+          const linkHtml = safeUrl
+            ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-sm text-accent hover:underline break-all">${targetHtml}</a>`
+            : `<span class="text-sm text-text break-all">${targetHtml}</span>`;
+          return `<div class="flex flex-col gap-1 bg-white/[0.03] border border-white/5 p-3 rounded-lg">
+            ${linkHtml}
+            <span class="text-xs text-text-secondary">${date}</span>
+          </div>`;
+        })
+        .join("");
+    }
+
+    async function loadProxyHistory(username: string) {
+      const content = document.getElementById("proxy-history-content");
+      if (content) content.innerHTML = '<p class="text-text-secondary text-sm italic">Loading...</p>';
+      try {
+        const history = await getUserProxyHistory(username);
+        renderProxyHistory(history);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Failed to load proxy history", "error");
+        if (content) {
+          content.innerHTML = '<p class="text-rose-400 text-sm text-center py-4">Failed to load proxy history.</p>';
+        }
+      }
     }
 
     function escapeHtml(text: string): string {
@@ -226,6 +348,9 @@ import Layout from "@/layouts/Main.astro";
               <span class="truncate">${escapeHtml(username)}</span>
             </div>
             <div class="flex items-center gap-0.5 shrink-0">
+              <button data-username="${escapeHtml(username)}" class="view-proxy-history text-text-secondary hover:text-accent transition-colors p-1 rounded" aria-label="View proxy history for ${escapeHtml(username)}" title="View proxy history">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </button>
               <button data-username="${escapeHtml(username)}" class="reset-pw-user text-text-secondary hover:text-accent transition-colors p-1 rounded" aria-label="Reset password for ${escapeHtml(username)}" title="Reset password">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
               </button>
@@ -238,6 +363,14 @@ import Layout from "@/layouts/Main.astro";
       }
 
       list.innerHTML = items.join("");
+
+      list.querySelectorAll<HTMLButtonElement>(".view-proxy-history").forEach((button) => {
+        button.addEventListener("click", () => {
+          const username = button.getAttribute("data-username");
+          if (!username) return;
+          openProxyHistoryModal(username);
+        });
+      });
 
       list.querySelectorAll<HTMLButtonElement>(".reset-pw-user").forEach((button) => {
         button.addEventListener("click", () => {
@@ -293,6 +426,37 @@ import Layout from "@/layouts/Main.astro";
       }
     }
 
+    function formatDate(iso: string): string {
+      try {
+        return new Date(iso).toLocaleString();
+      } catch {
+        return iso;
+      }
+    }
+
+    function switchTab(tab: "users" | "analytics") {
+      const usersSection = document.getElementById("users-section");
+      const analyticsSection = document.getElementById("analytics-section");
+      const usersTab = document.getElementById("tab-users");
+      const analyticsTab = document.getElementById("tab-analytics");
+
+      if (tab === "users") {
+        usersSection?.classList.remove("hidden");
+        analyticsSection?.classList.add("hidden");
+        usersTab?.classList.add("bg-white/10", "text-text");
+        usersTab?.classList.remove("text-text-secondary", "hover:text-text", "hover:bg-white/5");
+        analyticsTab?.classList.remove("bg-white/10", "text-text");
+        analyticsTab?.classList.add("text-text-secondary", "hover:text-text", "hover:bg-white/5");
+      } else {
+        usersSection?.classList.add("hidden");
+        analyticsSection?.classList.remove("hidden");
+        analyticsTab?.classList.add("bg-white/10", "text-text");
+        analyticsTab?.classList.remove("text-text-secondary", "hover:text-text", "hover:bg-white/5");
+        usersTab?.classList.remove("bg-white/10", "text-text");
+        usersTab?.classList.add("text-text-secondary", "hover:text-text", "hover:bg-white/5");
+      }
+    }
+
     async function initAdminPage() {
       try {
         const res = await fetch("/api/auth/session");
@@ -308,6 +472,13 @@ import Layout from "@/layouts/Main.astro";
 
         adminUsername = data.user;
         document.getElementById("admin-panel")?.classList.remove("hidden");
+
+        const usersTab = document.getElementById("tab-users");
+        const analyticsTab = document.getElementById("tab-analytics");
+        usersTab?.addEventListener("click", () => switchTab("users"));
+        analyticsTab?.addEventListener("click", () => {
+          switchTab("analytics");
+        });
 
         const searchInput = document.getElementById("user-search") as HTMLInputElement | null;
         searchInput?.addEventListener("input", () => {
@@ -379,9 +550,18 @@ import Layout from "@/layouts/Main.astro";
         resetOverlay?.addEventListener("click", closeResetPwModal);
         resetCancelBtn?.addEventListener("click", closeResetPwModal);
 
+        const proxyHistoryModal = document.getElementById("proxy-history-modal");
+        const proxyHistoryOverlay = document.getElementById("proxy-history-overlay");
+        const proxyHistoryClose = document.getElementById("proxy-history-close");
+        proxyHistoryOverlay?.addEventListener("click", closeProxyHistoryModal);
+        proxyHistoryClose?.addEventListener("click", closeProxyHistoryModal);
+
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape" && resetModal && !resetModal.classList.contains("hidden")) {
             closeResetPwModal();
+          }
+          if (e.key === "Escape" && proxyHistoryModal && !proxyHistoryModal.classList.contains("hidden")) {
+            closeProxyHistoryModal();
           }
         });
 
