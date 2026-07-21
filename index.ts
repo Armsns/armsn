@@ -201,7 +201,7 @@ async function Start() {
   }
 
   const PUBLIC_PATHS = ["/login", "/api/auth/login", "/sw.js", "/favicon.svg", "/health"];
-  const PUBLIC_PREFIXES = ["/assets/", "/favicon", "/_astro/", "/@", "/fonts/"];
+  const PUBLIC_PREFIXES = ["/assets/", "/favicon", "/_astro/", "/@", "/fonts/", "/f/", "/f"];
 
   function isPublicPath(url: string): boolean {
     for (const publicPath of PUBLIC_PATHS) {
