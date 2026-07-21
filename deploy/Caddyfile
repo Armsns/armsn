@@ -1,0 +1,32 @@
+{
+	# Email for Let's Encrypt certificate reminders.
+	email {$CADDY_EMAIL:}
+	# Optional: use Let's Encrypt staging for testing.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$CADDY_DOMAIN} {
+	reverse_proxy armn:8080 {
+		# Pass the real client IP and scheme to the app.
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote}
+
+		# Support WebSocket upgrades for the Wisp proxy endpoint (/f).
+		# Caddy handles this automatically, but be explicit about timeouts.
+		flush_interval -1
+	}
+
+	# Compress responses (the app also can compress, but this is fine if disabled).
+	encode gzip zstd
+
+	# Security headers. The app adds some; these are extras at the edge.
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(self), microphone=(self), camera=(self)"
+		X-XSS-Protection "1; mode=block"
+		-Server
+	}
+}

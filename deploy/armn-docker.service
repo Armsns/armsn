@@ -1,0 +1,20 @@
+[Unit]
+Description=ARM$N docker-compose service
+Requires=docker.service
+After=docker.service network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=armn
+Group=armn
+WorkingDirectory=/opt/armn
+Environment="DOCKER_CLIENT_TIMEOUT=180"
+Environment="COMPOSE_HTTP_TIMEOUT=180"
+
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+ExecReload=/usr/bin/docker compose up -d --build --remove-orphans
+
+[Install]
+WantedBy=multi-user.target
