@@ -1,11 +1,8 @@
 import { getObfId, getRoute } from "./obf-helpers";
-
-function isUrl(val = ""): boolean {
-  return /^http(s?):\/\//.test(val) || (val.includes(".") && !val.includes(" "));
-}
+import { getSearchEngineUrl, isSearchQuery } from "./tabs";
 
 const initHome = () => {
-  const searchUrl = localStorage.getItem("engine") || "https://duckduckgo.com/?q=";
+  const searchUrl = getSearchEngineUrl();
   const input = document.getElementById(getObfId("search")) as HTMLInputElement | null;
   const tagline = document.getElementById(getObfId("tagline"));
 
@@ -23,8 +20,8 @@ const initHome = () => {
       if (e.key === "Enter") {
         e.preventDefault();
         let url = input.value || "";
-        if (!isUrl(url)) {
-          url = searchUrl + url;
+        if (isSearchQuery(url)) {
+          url = `${searchUrl}${encodeURIComponent(url.trim())}`;
         } else if (!(url.startsWith("https://") || url.startsWith("http://"))) {
           url = `https://${url}`;
         }

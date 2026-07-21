@@ -14,13 +14,35 @@ export const getProxyEngine = (): "scramjet" => "scramjet";
 
 export const baseTabs: Tab[] = [{ id: 1, title: "Tab 1", url: "about:blank", active: true, reloadKey: 0 }];
 
-export const formatUrl = (value: string): string => {
-  if (!value.trim()) return "about:blank";
+export const getSearchEngineUrl = (): string => {
+  if (typeof window === "undefined") return "https://duckduckgo.com/?q=";
+  try {
+    return localStorage.getItem("engine") || "https://duckduckgo.com/?q=";
+  } catch {
+    return "https://duckduckgo.com/?q=";
+  }
+};
 
-  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+export const isSearchQuery = (value: string): boolean => {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes(" ")) return true;
+  if (/^https?:\/\//i.test(trimmed)) return false;
+  return !trimmed.includes(".");
+};
+
+export const formatUrl = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return "about:blank";
+
+  if (isSearchQuery(trimmed)) {
+    return `${getSearchEngineUrl()}${encodeURIComponent(trimmed)}`;
+  }
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
   if (!isValidHttpUrl(withProtocol)) {
-    return "about:blank";
+    return `${getSearchEngineUrl()}${encodeURIComponent(trimmed)}`;
   }
 
   return withProtocol;
