@@ -136,7 +136,10 @@ async function Start() {
   }
 
   const adminUser = process.env.ADMIN_USER || process.env.AUTH_USER || "";
-  if (!adminUser) {
+  const adminUsers = new Set<string>(
+    [adminUser, ...(process.env.AUTH_ADMINS?.split(",").map((u) => u.trim()).filter(Boolean) ?? [])].filter(Boolean),
+  );
+  if (adminUsers.size === 0) {
     console.warn("[ARM$N] ADMIN_USER or AUTH_USER is not set. The admin panel will be inaccessible.");
   }
 
@@ -299,12 +302,12 @@ async function Start() {
     if (!session) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-    return reply.code(200).send({ user: session.username, isAdmin: session.username === adminUser });
+    return reply.code(200).send({ user: session.username, isAdmin: adminUsers.has(session.username) });
   });
 
   function isAdminSession(cookieHeader: string | undefined): boolean {
     const session = parseSessionCookie(cookieHeader);
-    return session !== null && session.username === adminUser;
+    return session !== null && adminUsers.has(session.username);
   }
 
   app.get("/api/admin/users", async (req, reply) => {
