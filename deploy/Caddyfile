@@ -1,4 +1,4 @@
-:80 {
+armsn.neosbay.com {
 	reverse_proxy armn:8080 {
 		# Pass the real client IP and scheme to the app.
 		header_up X-Forwarded-For {remote_host}
