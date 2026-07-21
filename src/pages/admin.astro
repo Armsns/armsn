@@ -8,6 +8,7 @@ import Shield from "lucide-astro/Shield";
 import UserPlus from "lucide-astro/UserPlus";
 import Users from "lucide-astro/Users";
 import AnalyticsCharts from "@/components/AnalyticsCharts";
+import SystemMetrics from "@/components/SystemMetrics";
 import Layout from "@/layouts/Main.astro";
 ---
 
@@ -39,6 +40,13 @@ import Layout from "@/layouts/Main.astro";
           class="px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text hover:bg-white/5 transition-colors"
         >
           Analytics
+        </button>
+        <button
+          id="tab-system"
+          type="button"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text hover:bg-white/5 transition-colors"
+        >
+          System
         </button>
       </div>
 
@@ -128,6 +136,20 @@ import Layout from "@/layouts/Main.astro";
         </div>
 
         <AnalyticsCharts client:load />
+      </div>
+
+      <div id="system-section" class="hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-accent/10 text-accent">
+            <Activity class="w-5 h-5" stroke-width={1.5} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-text">System</h2>
+            <p class="text-xs text-text-secondary">Live CPU, memory, disk, and uptime metrics</p>
+          </div>
+        </div>
+
+        <SystemMetrics client:load />
       </div>
     </div>
   </div>
@@ -434,27 +456,31 @@ import Layout from "@/layouts/Main.astro";
       }
     }
 
-    function switchTab(tab: "users" | "analytics") {
+    function setTabStyles(tab: HTMLElement | null, active: boolean) {
+      if (active) {
+        tab?.classList.add("bg-white/10", "text-text");
+        tab?.classList.remove("text-text-secondary", "hover:text-text", "hover:bg-white/5");
+      } else {
+        tab?.classList.remove("bg-white/10", "text-text");
+        tab?.classList.add("text-text-secondary", "hover:text-text", "hover:bg-white/5");
+      }
+    }
+
+    function switchTab(tab: "users" | "analytics" | "system") {
       const usersSection = document.getElementById("users-section");
       const analyticsSection = document.getElementById("analytics-section");
+      const systemSection = document.getElementById("system-section");
       const usersTab = document.getElementById("tab-users");
       const analyticsTab = document.getElementById("tab-analytics");
+      const systemTab = document.getElementById("tab-system");
 
-      if (tab === "users") {
-        usersSection?.classList.remove("hidden");
-        analyticsSection?.classList.add("hidden");
-        usersTab?.classList.add("bg-white/10", "text-text");
-        usersTab?.classList.remove("text-text-secondary", "hover:text-text", "hover:bg-white/5");
-        analyticsTab?.classList.remove("bg-white/10", "text-text");
-        analyticsTab?.classList.add("text-text-secondary", "hover:text-text", "hover:bg-white/5");
-      } else {
-        usersSection?.classList.add("hidden");
-        analyticsSection?.classList.remove("hidden");
-        analyticsTab?.classList.add("bg-white/10", "text-text");
-        analyticsTab?.classList.remove("text-text-secondary", "hover:text-text", "hover:bg-white/5");
-        usersTab?.classList.remove("bg-white/10", "text-text");
-        usersTab?.classList.add("text-text-secondary", "hover:text-text", "hover:bg-white/5");
-      }
+      usersSection?.classList.toggle("hidden", tab !== "users");
+      analyticsSection?.classList.toggle("hidden", tab !== "analytics");
+      systemSection?.classList.toggle("hidden", tab !== "system");
+
+      setTabStyles(usersTab, tab === "users");
+      setTabStyles(analyticsTab, tab === "analytics");
+      setTabStyles(systemTab, tab === "system");
     }
 
     async function initAdminPage() {
@@ -475,10 +501,12 @@ import Layout from "@/layouts/Main.astro";
 
         const usersTab = document.getElementById("tab-users");
         const analyticsTab = document.getElementById("tab-analytics");
+        const systemTab = document.getElementById("tab-system");
         usersTab?.addEventListener("click", () => switchTab("users"));
         analyticsTab?.addEventListener("click", () => {
           switchTab("analytics");
         });
+        systemTab?.addEventListener("click", () => switchTab("system"));
 
         const searchInput = document.getElementById("user-search") as HTMLInputElement | null;
         searchInput?.addEventListener("input", () => {

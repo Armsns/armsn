@@ -108,6 +108,31 @@ export interface ProxyHistoryResponse {
   history: ProxyHistoryItem[];
 }
 
+export interface SystemMetricsData {
+  uptime: number;
+  platform: string;
+  hostname: string;
+  cpu: {
+    count: number;
+    model: string;
+    speed: number;
+    loadAverage: number[];
+  };
+  memory: {
+    total: number;
+    free: number;
+    used: number;
+    usedPercentage: number;
+  };
+  disk: {
+    total: number;
+    free: number;
+    used: number;
+  } | null;
+  networkInterfaces: Record<string, Array<{ address: string; family: string; internal: boolean }>>;
+  timestamp: string;
+}
+
 export async function getUserProxyHistory(username: string): Promise<ProxyHistoryItem[]> {
   const res = await fetch(`/api/admin/users/${encodeURIComponent(username)}/proxy-history`);
   if (!res.ok) {
@@ -116,4 +141,13 @@ export async function getUserProxyHistory(username: string): Promise<ProxyHistor
   }
   const result = (await res.json()) as ProxyHistoryResponse;
   return result.history || [];
+}
+
+export async function getSystemMetrics(): Promise<SystemMetricsData> {
+  const res = await fetch("/api/admin/system");
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({ error: "Failed to load system metrics" }))) as { error?: string };
+    throw new Error(data.error || "Failed to load system metrics");
+  }
+  return (await res.json()) as SystemMetricsData;
 }

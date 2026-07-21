@@ -4,6 +4,7 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
+import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 
@@ -636,6 +637,59 @@ async function Start() {
       recentProxyUsage: proxyResult.data ?? [],
       recentServerRequests: serverRequestsResult.data ?? [],
       topPages: topPagesArray,
+    });
+  });
+
+  app.get("/api/admin/system", async (req, reply) => {
+    if (!isAdminSession(req.headers.cookie)) {
+      return reply.code(403).send({ error: "Forbidden" });
+    }
+
+    const cpus = os.cpus();
+    const cpuInfo = cpus.map((cpu) => ({
+      model: cpu.model,
+      speed: cpu.speed,
+    }));
+
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+
+    let disk: { total: number; free: number; used: number } | null = null;
+    try {
+      const stats = fs.statfsSync("/");
+      const total = stats.blocks * stats.bsize;
+      const free = stats.bfree * stats.bsize;
+      disk = {
+        total,
+        free,
+        used: total - free,
+      };
+    } catch {
+      disk = null;
+    }
+
+    const networkInterfaces = os.networkInterfaces();
+
+    return reply.code(200).send({
+      uptime: os.uptime(),
+      platform: os.platform(),
+      hostname: os.hostname(),
+      cpu: {
+        count: cpus.length,
+        model: cpuInfo[0]?.model ?? "Unknown",
+        speed: cpuInfo[0]?.speed ?? 0,
+        loadAverage: os.loadavg(),
+      },
+      memory: {
+        total: totalMemory,
+        free: freeMemory,
+        used: usedMemory,
+        usedPercentage: totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0,
+      },
+      disk,
+      networkInterfaces,
+      timestamp: new Date().toISOString(),
     });
   });
 
