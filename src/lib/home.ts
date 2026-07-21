@@ -1,9 +1,6 @@
-import { getObfId, getRoute } from "./obf-helpers";
-import { getSearchEngineUrl, isSearchQuery } from "./tabs";
+import { getObfId } from "./obf-helpers";
 
 const initHome = () => {
-  const searchUrl = getSearchEngineUrl();
-  const input = document.getElementById(getObfId("search")) as HTMLInputElement | null;
   const tagline = document.getElementById(getObfId("tagline"));
 
   if (tagline) {
@@ -11,24 +8,6 @@ const initHome = () => {
     const pick = messages[Math.floor(Math.random() * messages.length)];
     tagline.textContent = pick;
     tagline.classList.remove("opacity-0");
-  }
-
-  if (input && !input.dataset.bound) {
-    input.dataset.bound = "true";
-    input.focus();
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        let url = input.value || "";
-        if (isSearchQuery(url)) {
-          url = `${searchUrl}${encodeURIComponent(url.trim())}`;
-        } else if (!(url.startsWith("https://") || url.startsWith("http://"))) {
-          url = `https://${url}`;
-        }
-        sessionStorage.setItem("goUrl", url);
-        location.replace(getRoute("tabs"));
-      }
-    });
   }
 };
 

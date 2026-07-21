@@ -1,6 +1,7 @@
 import { Clock, Globe, Plus, Search, Trash2, Wifi, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getRoute } from "@/lib/obf-helpers";
+import { formatUrl } from "@/lib/tabs";
 
 interface Favorite {
   id: string;
@@ -74,6 +75,7 @@ export default function HomeDashboard() {
   const [newName, setNewName] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [proxyReady, setProxyReady] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
 
@@ -112,6 +114,12 @@ export default function HomeDashboard() {
     sessionStorage.setItem("goUrl", url);
     location.replace(getRoute("tabs"));
   }, []);
+
+  const handleSearch = useCallback(() => {
+    const raw = searchInputRef.current?.value ?? "";
+    const url = formatUrl(raw);
+    handleOpen(url);
+  }, [handleOpen]);
 
   const handleAdd = useCallback(() => {
     const name = newName.trim();
@@ -174,12 +182,16 @@ export default function HomeDashboard() {
         <div className="relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary group-focus-within:text-accent transition-colors" strokeWidth={2} />
           <input
+            ref={searchInputRef}
             id="search"
             className="w-full h-14 pl-12 pr-5 rounded-xl bg-white/[0.03] border border-white/10 text-base text-text placeholder:text-text-placeholder focus:outline-none focus:border-accent/50 focus:bg-white/[0.06] focus:shadow-glow transition-all"
             placeholder="Search or enter URL"
             type="search"
             autoComplete="off"
             spellCheck="false"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
           />
         </div>
         <p className="mt-3 text-center text-xs text-text-muted">
