@@ -116,6 +116,7 @@ export interface SystemMetricsData {
     count: number;
     model: string;
     speed: number;
+    usage: number;
     loadAverage: number[];
   };
   memory: {

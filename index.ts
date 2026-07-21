@@ -52,6 +52,51 @@ const SYNC_STARTUP_DELAY_MS = 5_000;
 
 let obfuscationMaps: ObfuscationMaps | null = null;
 
+interface CpuTimes {
+  user: number;
+  nice: number;
+  sys: number;
+  idle: number;
+  irq: number;
+}
+
+interface CpuSample {
+  timestamp: number;
+  times: CpuTimes[];
+}
+
+let previousCpuSample: CpuSample | null = null;
+
+function getCpuTimes(): CpuTimes[] {
+  return os.cpus().map((cpu) => ({
+    user: cpu.times.user,
+    nice: cpu.times.nice,
+    sys: cpu.times.sys,
+    idle: cpu.times.idle,
+    irq: cpu.times.irq,
+  }));
+}
+
+function calculateCpuUsage(current: CpuTimes[], previous: CpuTimes[]): number {
+  if (current.length !== previous.length) return 0;
+
+  let totalDiff = 0;
+  let idleDiff = 0;
+
+  for (let i = 0; i < current.length; i++) {
+    const curr = current[i];
+    const prev = previous[i];
+    const currTotal = curr.user + curr.nice + curr.sys + curr.idle + curr.irq;
+    const prevTotal = prev.user + prev.nice + prev.sys + prev.idle + prev.irq;
+    totalDiff += currTotal - prevTotal;
+    idleDiff += curr.idle - prev.idle;
+  }
+
+  if (totalDiff <= 0) return 0;
+  const usage = 100 * (1 - idleDiff / totalDiff);
+  return Math.max(0, Math.min(100, usage));
+}
+
 async function Start() {
   const FirstRun = process.env.FIRST === "true";
 
@@ -651,6 +696,14 @@ async function Start() {
       speed: cpu.speed,
     }));
 
+    const currentTimes = getCpuTimes();
+    const now = Date.now();
+    let cpuUsage = 0;
+    if (previousCpuSample && now > previousCpuSample.timestamp) {
+      cpuUsage = calculateCpuUsage(currentTimes, previousCpuSample.times);
+    }
+    previousCpuSample = { timestamp: now, times: currentTimes };
+
     const totalMemory = os.totalmem();
     const freeMemory = os.freemem();
     const usedMemory = totalMemory - freeMemory;
@@ -679,6 +732,7 @@ async function Start() {
         count: cpus.length,
         model: cpuInfo[0]?.model ?? "Unknown",
         speed: cpuInfo[0]?.speed ?? 0,
+        usage: cpuUsage,
         loadAverage: os.loadavg(),
       },
       memory: {

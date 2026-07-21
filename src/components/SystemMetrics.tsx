@@ -5,7 +5,7 @@ import { getSystemMetrics, type SystemMetricsData } from "@/lib/admin";
 interface HistoryPoint {
   time: string;
   memory: number;
-  cpuLoad: number;
+  cpuUsage: number;
 }
 
 function formatBytes(bytes: number): string {
@@ -47,7 +47,7 @@ export function SystemMetrics() {
           const newPoint: HistoryPoint = {
             time: now,
             memory: data.memory.usedPercentage,
-            cpuLoad: data.cpu.loadAverage[0] ?? 0,
+            cpuUsage: data.cpu.usage,
           };
           const next = [...prev, newPoint];
           if (next.length > 60) return next.slice(next.length - 60);
@@ -74,8 +74,8 @@ export function SystemMetrics() {
     if (!metrics) return [];
     return [
       {
-        label: "CPU Load",
-        value: metrics.cpu.loadAverage[0]?.toFixed(2) ?? "0.00",
+        label: "CPU Usage",
+        value: `${metrics.cpu.usage.toFixed(1)}%`,
         subtext: `${metrics.cpu.count} core${metrics.cpu.count === 1 ? "" : "s"}`,
       },
       {
@@ -170,7 +170,7 @@ export function SystemMetrics() {
           </AreaChart>
         </ChartCard>
 
-        <ChartCard title="CPU Load (1 min)">
+        <ChartCard title="CPU Usage %">
           <AreaChart data={history} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
             <defs>
               <linearGradient id="cpuGradient" x1="0" y1="0" x2="0" y2="1">
@@ -178,7 +178,7 @@ export function SystemMetrics() {
                 <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <YAxis tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }} domain={[0, "auto"]} allowDecimals />
+            <YAxis tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 12 }} domain={[0, 100]} allowDecimals={false} />
             <Tooltip
               contentStyle={{
                 backgroundColor: "rgba(0,0,0,0.8)",
@@ -190,7 +190,7 @@ export function SystemMetrics() {
             />
             <Area
               type="monotone"
-              dataKey="cpuLoad"
+              dataKey="cpuUsage"
               stroke="#34d399"
               strokeWidth={2}
               fill="url(#cpuGradient)"
