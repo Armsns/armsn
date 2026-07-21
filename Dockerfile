@@ -26,4 +26,4 @@ COPY --from=builder /app/src ./src
 
 EXPOSE 8080
 
-CMD ["bun", "run", "start"]
+CMD ["bun", "--smol", "run", "start"]
