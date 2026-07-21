@@ -5,7 +5,7 @@
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
-{$CADDY_DOMAIN} {
+:80 {
 	reverse_proxy armn:8080 {
 		# Pass the real client IP and scheme to the app.
 		header_up X-Forwarded-For {remote_host}

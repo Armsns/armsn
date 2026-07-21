@@ -27,8 +27,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      # Add 443 below after you point a domain at this server.
+      # - "443:443"
+      # - "443:443/udp"
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
