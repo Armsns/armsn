@@ -200,7 +200,7 @@ async function Start() {
     reply.header("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   }
 
-  const PUBLIC_PATHS = ["/login", "/api/auth/login", "/sw.js", "/favicon.svg"];
+  const PUBLIC_PATHS = ["/login", "/api/auth/login", "/sw.js", "/favicon.svg", "/health"];
   const PUBLIC_PREFIXES = ["/assets/", "/favicon", "/_astro/", "/@", "/fonts/"];
 
   function isPublicPath(url: string): boolean {
@@ -728,6 +728,10 @@ async function Start() {
   const scramjetFolder = assets.scramjet;
   const scramjetRoute = routes.scramjet;
   const sjAll = assets["scramjet.all"];
+
+  app.get("/health", async (_req, reply) => {
+    return reply.code(200).send({ status: "ok" });
+  });
 
   app.get("/sw.js", (_req, reply) => {
     const swCode = `importScripts("/assets/${scramjetFolder}/${sjAll}.js");
