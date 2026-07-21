@@ -1,10 +1,3 @@
-{
-	# Email for Let's Encrypt certificate reminders.
-	email {$CADDY_EMAIL:}
-	# Optional: use Let's Encrypt staging for testing.
-	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-}
-
 :80 {
 	reverse_proxy armn:8080 {
 		# Pass the real client IP and scheme to the app.
