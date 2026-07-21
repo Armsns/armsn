@@ -57,7 +57,7 @@ usermod -aG docker "$USER" || true
 # 3. Set up app directory
 # -----------------------------------------------------------------------------
 if [ ! -d "$APP_DIR/.git" ]; then
-  echo "==> Cloning ARM$N repo into $APP_DIR"
+  echo "==> Cloning ARM\$N repo into $APP_DIR"
   rm -rf "$APP_DIR"
   git clone https://github.com/arman/armsn.git "$APP_DIR" || {
     echo "ERROR: Failed to clone repo. Falling back to copying current working tree." >&2
@@ -85,7 +85,7 @@ fi
 # -----------------------------------------------------------------------------
 # 5. Build
 # -----------------------------------------------------------------------------
-echo "==> Building ARM$N with Docker Compose"
+echo "==> Building ARM\$N with Docker Compose"
 cd "$APP_DIR"
 docker compose pull 2>/dev/null || true
 docker compose build --no-cache armn
